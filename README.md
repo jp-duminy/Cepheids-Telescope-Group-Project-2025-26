@@ -11,4 +11,4 @@ Intended workflow:
 
 To-do:
 1. Interstellar reddening correction
-2. 
+2. Airmass corrections
