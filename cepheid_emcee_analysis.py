@@ -1,5 +1,3 @@
-MCMC Error Function
-
 """
 MCMC Class Cepheids
 @author: jp
