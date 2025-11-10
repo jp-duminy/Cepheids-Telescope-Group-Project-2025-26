@@ -109,41 +109,14 @@ class Aperture_Photometry:
         sky_sub_ap_flux = np.zeros(16)
         inner = 1.4
         outer = 2.0
-        centroid = self.get_centroid_and_fwhm(data)[0]
-        fwhm = self.get_centroid_and_fwhm(data)[1]
+        centroid, fwhm = self.get_centroid_and_fwhm(data)
 
-        for i in np.linspace(0, 4, 16):
-            aperture_radius[i] = i*fwhm
-            flux = self.aperture_photometry(data, centroid, ap_rad = i*fwhm, inner, outer)
-            sky_sub_ap_flux[i] = flux
+        for index, factor in enumerate(np.linspace(0, 4, 16)):
+            aperture_radius[index] = factor*fwhm
+            flux = self.aperture_photometry(data, centroid, ap_rad = factor*fwhm, inner=inner, outer=outer)
+            sky_sub_ap_flux[index] = flux
 
-        plt.plot(aperture_radius, sky_sub_ap_flux, c = "red", linestyle = "-", marker = "o")
+        plt.plot(aperture_radius, sky_sub_ap_flux, color = "red", linestyle = "-", marker = "o")
         plt.xlabel("Radius of aperture (pixels)")
         plt.ylabel("Sky subtracted flux through aperture (arb units)")
         plt.show()
-
-
-            
-
-        
-        
-
-
-    
-
-
-
-    
-
-
-        
-
-    
-
-
-    
-
-
-
-
-
