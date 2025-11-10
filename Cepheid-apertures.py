@@ -1,4 +1,4 @@
-"""Unfinished as of 05/11/25"""
+"""Unfinished as of 10/11/25"""
 
 import numpy as np
 from photutils.aperture import CircularAperture as circ_ap, CircularAnnulus as circ_ann, \
@@ -15,6 +15,8 @@ class Aperture_Photometry:
 
     """A class to perform basic aperture photometry on a dataset, up to and
     including determining the instrumental magnitude of a target."""
+
+    """AS OF 10/11/25, NO MECHANISM TO NORMALISE FLUXES TO CTS PER SECOND"""
 
     def __init__(self, filename): 
 
@@ -65,21 +67,67 @@ class Aperture_Photometry:
         return masked_data
 
 
-    def get_centroid(self, x, y, width):
+    def get_centroid_and_fwhm(self, data):
         """Get Gaussian centroid of target source around which to
-        centre the aperture."""
-        centroid = centroid_2dg(self.mask_data(x, y, width, width))
-        return centroid
-    
-    def get_fwhm(self, x, y, width):
-        """Get the FWHM of target source centred around the centroid"""
-        fwhm = psf.fit_fwhm(data = self.mask_data(x, y, width, width), 
-                            xypos = self.get_centroid(x, y, width, width))
+        centre the aperture, and the FWHM of the target source centred around
+        the centroid."""
+        centroid = centroid_2dg(data) #Should be masked
+        fwhm = psf.fit_fwhm(data = data, xypos = centroid)
         #Function expects data to be bkgd subtracted
         #Nan/inf values automatically masked
-        return fwhm
+        return centroid, fwhm
     
-    def 
+    def aperture_photometry(self, data, centroid, ap_rad, inner, outer):
+        """Main method: Using the determined centroids and FWHM of the source, Sum the fluxes
+        through the circular apertures and annuli."""
+
+        if inner < 1 or outer < 1:
+            raise ValueError(f"inner and outer constants must both be > 1")
+
+        target_aperture = circ_ap(centroid, ap_rad) 
+        sky_annulus = circ_ann(centroid, r_in = inner*ap_rad, r_out = outer*ap_rad)
+        #inner/outer are multiplicative constants to scale the size of the aperture.
+        #Inner should be ~1.5, outer ~2.
+        #Might ask Kenneth what the ideal constants are
+
+        #Sum flux through apertures
+        total_flux = ap(data, target_aperture)["aperture_sum"].value
+        annulus_flux = ap(data, sky_annulus)["aperture_sum"].value
+        #Get sky background
+        mean_sky_bckgnd_per_pixel = annulus_flux / sky_annulus.area
+        total_sky_bckgnd = mean_sky_bckgnd_per_pixel * target_aperture.area
+
+        target_flux = total_flux - total_sky_bckgnd
+
+        return target_flux #Sky subtracted
+    
+    def curve_of_growth(self, data):
+        """To calculate and plot the sky-subtracted flux obtained in a series
+        of increasingly large apertures."""
+
+        aperture_radius = np.zeros(16)
+        sky_sub_ap_flux = np.zeros(16)
+        inner = 1.4
+        outer = 2.0
+        centroid = self.get_centroid_and_fwhm(data)[0]
+        fwhm = self.get_centroid_and_fwhm(data)[1]
+
+        for i in np.linspace(0, 4, 16):
+            aperture_radius[i] = i*fwhm
+            flux = self.aperture_photometry(data, centroid, ap_rad = i*fwhm, inner, outer)
+            sky_sub_ap_flux[i] = flux
+
+        plt.plot(aperture_radius, sky_sub_ap_flux, c = "red", linestyle = "-", marker = "o")
+        plt.xlabel("Radius of aperture (pixels)")
+        plt.ylabel("Sky subtracted flux through aperture (arb units)")
+        plt.show()
+
+
+            
+
+        
+        
+
 
     
 
