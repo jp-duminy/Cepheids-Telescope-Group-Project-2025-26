@@ -4,7 +4,6 @@ import scipy
 from astropy.io import fits
 import glob
 import os
-
 import astropy.units as u
 import astropy.wcs as WCS
 from astropy.coordinates import SkyCoord
@@ -31,6 +30,14 @@ def find_ceph(ceph_folder, ceph_nums):
 
     return filtered_files
 
+  #  def save_master_bias(self, filepath):
+        
+        #master_bias = self.normalise()
+
+       # hdu = fits.PrimaryHDU(master_bias)
+
+       # print(f"Master bias saved to: {filepath}")
+
 if __name__ == "__main__":
     
     #read in the bias frames NOTE: this is the 1x1 binning bias frames for week 1
@@ -49,7 +56,7 @@ if __name__ == "__main__":
     ceph_folder_path = "/home/s2407710/Documents/tgp/22_09_cepheid1"
 
     #numbers of all the cepheids observed on night 1 (there were not enough observations for cepheid 1 on night 1)
-    ceph_nums = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11]
+    ceph_nums = [4, 8]
 
     #a folder to store the folders of the different cepheids
     all_corrected = {}
@@ -68,6 +75,12 @@ if __name__ == "__main__":
             flat_correction = Flat(flat_frame1, flat_frame2, flat_frame3, flat_frame4, bias_image)
             correct_image = flat_correction.flat_divide()
             corrected_images.append(correct_image)
+
+            #output_path = "/home/s2407710/Documnets/tgp/master_bias/master_bias_week1.fits"
+
+            #flat = Flat(bias1, bias2, bias3, bias4, science_img)
+            #flat.save_master_bias(output_path)
+
         stacked_cepheid = np.stack(corrected_images, axis=0)
         mean_cepheid = np.mean(stacked_cepheid, axis=0)
         all_corrected[num] = corrected_images
