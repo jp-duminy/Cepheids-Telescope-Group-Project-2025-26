@@ -1,6 +1,6 @@
 import numpy as np
 from photutils.aperture import CircularAperture as circ_ap, CircularAnnulus as circ_ann, \
-    aperture_photometry as ap, ApertureMask as mask, SkyAperture as sky_ap, \
+    aperture_photometry as ap, ApertureStats as stats, \
     RectangularAperture as rect_ap
 from photutils.centroids import centroid_2dg
 import photutils.psf as psf
@@ -135,7 +135,35 @@ class Aperture_Photometry:
             plt.savefig(f"CoG_{ceph_name}_{date}")
         plt.show()
 
-    def get_instrumental_magnitude(self, counts):
+    def instrumental_magnitude(self, counts):
         """Compute instrumental magnitude of targets from sky-subtracted flux"""
         inst_mag = -2.5 * np.log10(counts)
         return inst_mag 
+    
+    def get_snr(target_counts, gain, exp_time, read_noise, stack_size, aperture_area,
+                sky_counts, sky_ann_area):
+
+        """Compute SNR of instrumental magnitude using the CCD equation.
+
+        NB: Assumes that sky background uncertainty follows Poisson stats,
+        and that the dark current is negligable.
+        Remember that electrons are the subject of the CCD eqn, not the 
+        digital numbers. Include the gain factor
+        sky_counts units of e- per s per pixel"""
+
+        signal = gain * target_counts * exp_time
+        source_variance = signal
+        sky_variance = gain * exp_time * aperture_area * sky_counts * (1 + (aperture_area / sky_ann_area))
+        rn_term = aperture_area  * (1 + (aperture_area / sky_ann_area))* (read_noise ** 2) * stack_size
+
+        noise = np.sqrt(source_variance + sky_variance + rn_term)
+
+        snr = signal / noise
+        return snr
+    
+    """Revised CCD equation taken from Handbook of CCD Astronomy by Howell""" 
+
+
+        
+
+        
