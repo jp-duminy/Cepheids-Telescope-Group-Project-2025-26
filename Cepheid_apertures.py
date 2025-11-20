@@ -25,8 +25,7 @@ class Aperture_Photometry:
 
         with fits.open(filename) as hdul:
             data = hdul[0].data
-            header = hdul[0].data
-            extra_header = hdul[hdu_index].data
+            header = hdul[0].data 
 
         if data.ndim != 2:
             raise ValueError(f"The image is {data.ndim}D, not 2D")
@@ -36,7 +35,6 @@ class Aperture_Photometry:
 
         self.data = data
         self.header = header
-        self.extra_header = extra_header
 
     def get_pixel_coords(self, WCS, RA, Dec, origin = 0):
         """Converts world coordinates of targets (RA, Dec) to pixel coordinates (x, y). 
@@ -106,9 +104,9 @@ class Aperture_Photometry:
         mean_sky_bckgnd_per_pixel = annulus_flux / sky_annulus.area
         total_sky_bckgnd = mean_sky_bckgnd_per_pixel * target_aperture.area
 
-        target_flux = total_flux - total_sky_bckgnd
+        target_flux = total_flux - total_sky_bckgnd 
 
-        return target_flux #Sky subtracted
+        return target_flux, mean_sky_bckgnd_per_pixel, target_aperture.area, sky_annulus.area
     
     def curve_of_growth(self, data, ceph_name, date, savefig = False):
         """To calculate and plot the sky-subtracted flux obtained in a series
@@ -122,7 +120,7 @@ class Aperture_Photometry:
 
         for index, factor in enumerate(np.linspace(0.1, 4, 16)):
             aperture_radius[index] = factor*fwhm
-            flux = self.aperture_photometry(data, centroid, ap_rad = factor*fwhm, inner=inner, outer=outer, plot = False)
+            flux = self.aperture_photometry(data, centroid, ap_rad = factor*fwhm, inner=inner, outer=outer, plot = False)[0]
             sky_sub_ap_flux[index] = flux
 
         normalised_ssaf = sky_sub_ap_flux / np.max(sky_sub_ap_flux)
@@ -137,13 +135,14 @@ class Aperture_Photometry:
 
     def instrumental_magnitude(self, counts):
         """Compute instrumental magnitude of targets from sky-subtracted flux"""
-        inst_mag = -2.5 * np.log10(counts)
+        inst_mag = -2.5 * np.log10(counts).item()
         return inst_mag 
     
-    def get_snr(target_counts, gain, exp_time, read_noise, stack_size, aperture_area,
-                sky_counts, sky_ann_area):
+    def get_snr(self, target_counts, aperture_area, sky_counts, sky_ann_area, 
+                gain = None, exp_time = None, read_noise = None, stack_size = None):
 
-        """Compute SNR of instrumental magnitude using the CCD equation.
+        """Compute SNR of instrumental magnitude using a revised CCD equation taken
+        from Handbook of CCD Astronomy by Howell.
 
         NB: Assumes that sky background uncertainty follows Poisson stats,
         and that the dark current is negligable.
@@ -152,6 +151,7 @@ class Aperture_Photometry:
         sky_counts units of e- per s per pixel"""
 
         signal = gain * target_counts * exp_time
+        
         source_variance = signal
         sky_variance = gain * exp_time * aperture_area * sky_counts * (1 + (aperture_area / sky_ann_area))
         rn_term = aperture_area  * (1 + (aperture_area / sky_ann_area))* (read_noise ** 2) * stack_size
@@ -159,9 +159,12 @@ class Aperture_Photometry:
         noise = np.sqrt(source_variance + sky_variance + rn_term)
 
         snr = signal / noise
+        snr = snr.item()
         return snr
     
-    """Revised CCD equation taken from Handbook of CCD Astronomy by Howell""" 
+    
+
+    
 
 
         
