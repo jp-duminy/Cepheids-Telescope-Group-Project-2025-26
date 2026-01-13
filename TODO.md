@@ -10,3 +10,7 @@ Targets:
 - Refine error analysis
 - Update plots to incorporate errors
 - Start thinking about applying the data analysis to Andromeda CV1
+
+Bug fixing:
+
+- Rewrite code to take periods instead of frequency (ugh)

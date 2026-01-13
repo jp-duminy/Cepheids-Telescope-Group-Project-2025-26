@@ -48,19 +48,16 @@ class Finder(Sinusoid_Period_Finder):
             )
         
         params, errors, tau, f0 = self.finder.sine_run_mcmc()
-        mc_a, mc_p, mc_m, mc_f = params
+        mc_a, mc_p, mc_m, _, mc_best_period = params
 
         upper_errors, lower_errors = errors
-        mc_a_err_upper, mc_p_err_upper, mc_m_err_upper, mc_f_err_upper = upper_errors
-        mc_a_err_lower, mc_p_err_lower, mc_m_err_lower, mc_f_err_lower = lower_errors
+        mc_a_err_upper, mc_p_err_upper, mc_m_err_upper, _, mc_period_err_upper = upper_errors
+        mc_a_err_lower, mc_p_err_lower, mc_m_err_lower, _, mc_period_err_lower = lower_errors
 
-        mc_best_period = 1 / mc_f
-        mc_best_period_err_upper = mc_f_err_lower / mc_f**2  
-        mc_best_period_err_lower = mc_f_err_upper / mc_f**2  
 
         print(
             f"Emcee Best Period for Cepheid {self.name}:\n"
-            f"  {mc_best_period:.3f} +{mc_best_period_err_upper:.3f} -{mc_best_period_err_lower:.3f} days\n"
+            f"  {mc_best_period:.3f} +{mc_period_err_upper:.3f} -{mc_period_err_lower:.3f} days\n"
             f"Best-fit parameters:\n"
             f"  Amplitude: {mc_a:.3f} +{mc_a_err_upper:.3f} -{mc_a_err_lower:.3f}\n"
             f"  Phase:     {mc_p:.3f} +{mc_p_err_upper:.3f} -{mc_p_err_lower:.3f}\n"

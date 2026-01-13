@@ -232,7 +232,7 @@ class Sinusoid_Period_Finder:
             f_min < f < f_max and
             p_min < p < p_max and
             m_min < m < m_max):
-            return 0.0 # ln(0) = 1: flat prior, all values are equally likely
+            return 0.0 # ln(1) = 0: flat prior, all values are equally likely
         else:
             return -np.inf # prior is also bounded to physical region of parameter space
 
@@ -287,21 +287,28 @@ class Sinusoid_Period_Finder:
             thin = 10 
         self.thin = thin
         self.flat_samples = self.sampler.get_chain(thin=self.thin, flat=True)
-
-        quantiles = [0.025, 0.5, 0.975]  # 0.025-0.975 is ~ 2σ gaussian error
+        
+        quantiles = [2.5, 50, 97.5]  # 0.025-0.975 is ~ 2σ gaussian error
         lower, median, upper = np.percentile(self.flat_samples, quantiles, axis=0)
 
         # the median (0.5) summarises the central tendency of the posterior distribution
         self.mc_a0, self.mc_p0, self.mc_m0, self.mc_f0 = median
+
+        # specific period data
+        period_samples = 1 / self.flat_samples[:, 3]
+        P_lower, P_med, P_upper = np.percentile(period_samples, [2.5, 50, 97.5])
+        upper = np.append(upper, P_upper)
+        lower = np.append(lower, P_lower)
 
         # compute errors from quartiles
         self.mc_a0_err = (upper[0] - median[0], median[0] - lower[0])
         self.mc_p0_err = (upper[1] - median[1], median[1] - lower[1])
         self.mc_m0_err = (upper[2] - median[2], median[2] - lower[2])
         self.mc_f0_err = (upper[3] - median[3], median[3] - lower[3])
-
+        
+        median = np.append(median, P_med)
         errors = (upper - median, median - lower)
-
+        
         log_prob = self.sampler.get_log_prob(thin=self.thin, flat=True)
         best_index = np.argmax(log_prob)
         a0, p0, o0, f0 = self.flat_samples[best_index]
@@ -332,7 +339,8 @@ class Sinusoid_Period_Finder:
         labels = ["Amplitude", "Phase", "Midline", "Frequency"]
         fig = corner.corner(
             self.flat_samples, labels=labels, show_titles=True, # displays uncertainties
-            quantiles = [0.025, 0.5, 0.975] # 0.025-0.975 ~ 2σ gaussian error, 0.5 is the median
+            quantiles = [0.025, 0.5, 0.975], # 0.025-0.975 ~ 2σ gaussian error, 0.5 is the median
+            title_fmt=".3f"
             ) 
         plt.show()
 
