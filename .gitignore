@@ -19,3 +19,6 @@ env/
 # OS / temp files
 .DS_Store
 Thumbs.db
+
+# code graveyard
+code_graveyard.py

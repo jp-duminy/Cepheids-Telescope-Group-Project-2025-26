@@ -39,11 +39,11 @@ class Sinusoid_Period_Finder:
 
         plt.show()
 
-    def sinusoid_model(self, t, amplitude, phase, midline, frequency): # frequency at end so it can be held fixed
+    def sinusoid_model(self, t, amplitude, phase, midline, period): # period at end so it can be held fixed
         """
         Returns a sinusoid with four free parameters.
         """
-        return amplitude * np.sin((2 * np.pi * frequency * t) + phase) + midline
+        return amplitude * np.sin(((2 * np.pi * t)/period) + phase) + midline
     
     # chi-squares fitting functions
 
@@ -52,8 +52,7 @@ class Sinusoid_Period_Finder:
         Chi-square function taking period as an argument so period may be iterated over.
         """
         a, p, m = theta # free parameters
-        f = 1 / period # messy conversion but literature data is in periods
-        M_model = self.sinusoid_model(self.time, a, p, m, f)
+        M_model = self.sinusoid_model(self.time, a, p, m, period)
 
         chisq = np.sum(((self.magnitude - M_model) / self.magnitude_error)**2)
 
@@ -79,9 +78,8 @@ class Sinusoid_Period_Finder:
             p0 = 0.0
             m0 = np.median(self.magnitude)
             theta = [a0, p0, m0]
-            frequency = 1 / period
             # lambda function allows period to be held fixed
-            parameters, cov = scipy.optimize.curve_fit(lambda t, a, p, m: self.sinusoid_model(t, a, p, m, frequency), 
+            parameters, cov = scipy.optimize.curve_fit(lambda t, a, p, m: self.sinusoid_model(t, a, p, m, period), 
                                                    self.time, self.magnitude, p0=theta, 
                                                    sigma=self.magnitude_error, absolute_sigma=True)
 
@@ -100,7 +98,7 @@ class Sinusoid_Period_Finder:
         best_chisqu = self.chisqu_vals[best_period_index]
 
         self.a0, self.p0, self.m0 = best_chisqu_params
-        self.f0 = 1 / best_chisqu_period
+        self.period0 = best_chisqu_period
 
         return best_chisqu_period, best_chisqu_params, best_chisqu_uncertainties, best_chisqu
     
@@ -123,7 +121,7 @@ class Sinusoid_Period_Finder:
 
         # generate data to visualise the fit
         x = np.linspace(self.time.min(), self.time.max(), 100)
-        y = self.sinusoid_model(x, self.a0, self.p0, self.m0, self.f0)
+        y = self.sinusoid_model(x, self.a0, self.p0, self.m0, self.period0)
 
         ax.errorbar(self.time, self.magnitude, yerr=self.magnitude_error, fmt='o', 
                     label='Original Data', color='black', capsize=5)
@@ -210,8 +208,8 @@ class Sinusoid_Period_Finder:
         Emcee works in log of parameter space, so we define the ln-likelihood function.
         This function takes a parameter vector [a, p, m, f] and returns the ln-likelihood.
         """
-        a, p, m, f = theta
-        modelled_magnitude = self.sinusoid_model(self.time, a, p, m, f)
+        a, p, m, period = theta
+        modelled_magnitude = self.sinusoid_model(self.time, a, p, m, period)
         residuals = self.magnitude - modelled_magnitude
         constant = np.log(2 * np.pi * self.magnitude_error**2) # constant term added for completeness
 
@@ -224,14 +222,15 @@ class Sinusoid_Period_Finder:
         a_min, a_max = -2 * abs(self.a0), 2 * abs(self.a0) # range is currently quite large
         p_min, p_max = -1 * np.pi, np.pi # explores all of phase space
         m_min, m_max = self.m0 - 2*abs(self.m0), self.m0 + 2*abs(self.m0) # also quite large
-        f_min, f_max = 0.75 * self.f0,  1.25 * self.f0 # frequency can't be negative
+        period_min, period_max = 0.9 * self.period0,  1.1 * self.period0 # period cannot be negative
 
-        a, p, m, f = theta
+        a, p, m, period = theta
 
         if (a_min < a < a_max and
-            f_min < f < f_max and
+
             p_min < p < p_max and
-            m_min < m < m_max):
+            m_min < m < m_max and
+            period_min < period < period_max):
             return 0.0 # ln(1) = 0: flat prior, all values are equally likely
         else:
             return -np.inf # prior is also bounded to physical region of parameter space
@@ -250,10 +249,21 @@ class Sinusoid_Period_Finder:
         """
         Uses chi-squared result to determine best initial position for walkers.
         """
-        pos = np.array([self.a0, self.p0, self.m0, self.f0]) # stitch into parameter vector
-        
-        starting_position = pos + 1e-2 * np.random.randn(nwalkers, ndim) # sprinkle gaussian noise
+        pos = np.array([self.a0, self.p0, self.m0, self.period0]) # stitch into parameter vector
 
+        # recreate boundaries from sine_ln_prior
+        a_min, a_max = -2 * abs(self.a0), 2 * abs(self.a0)
+        p_min, p_max = -np.pi, np.pi
+        m_min, m_max = self.m0 - 2*abs(self.m0), self.m0 + 2*abs(self.m0)
+        period_min, period_max = 0.9 * self.period0, 1.1 * self.period0  
+        
+        starting_position = pos + 1e-1 * np.random.randn(nwalkers, ndim)
+        
+        # Clip to ensure all walkers are within bounds
+        starting_position[:, 0] = np.clip(starting_position[:, 0], a_min, a_max)
+        starting_position[:, 1] = np.clip(starting_position[:, 1], p_min, p_max)
+        starting_position[:, 2] = np.clip(starting_position[:, 2], m_min, m_max)
+        starting_position[:, 3] = np.clip(starting_position[:, 3], period_min, period_max)
         return starting_position
 
     def sine_run_mcmc(self):
@@ -292,28 +302,21 @@ class Sinusoid_Period_Finder:
         lower, median, upper = np.percentile(self.flat_samples, quantiles, axis=0)
 
         # the median (0.5) summarises the central tendency of the posterior distribution
-        self.mc_a0, self.mc_p0, self.mc_m0, self.mc_f0 = median
-
-        # specific period data
-        period_samples = 1 / self.flat_samples[:, 3]
-        P_lower, P_med, P_upper = np.percentile(period_samples, [2.5, 50, 97.5])
-        upper = np.append(upper, P_upper)
-        lower = np.append(lower, P_lower)
+        self.mc_a0, self.mc_p0, self.mc_m0, self.mc_period0 = median
 
         # compute errors from quartiles
         self.mc_a0_err = (upper[0] - median[0], median[0] - lower[0])
         self.mc_p0_err = (upper[1] - median[1], median[1] - lower[1])
         self.mc_m0_err = (upper[2] - median[2], median[2] - lower[2])
-        self.mc_f0_err = (upper[3] - median[3], median[3] - lower[3])
+        self.mc_period0_err = (upper[3] - median[3], median[3] - lower[3])
         
-        median = np.append(median, P_med)
         errors = (upper - median, median - lower)
         
         log_prob = self.sampler.get_log_prob(thin=self.thin, flat=True)
         best_index = np.argmax(log_prob)
-        a0, p0, o0, f0 = self.flat_samples[best_index]
+        a0, p0, o0, period0 = self.flat_samples[best_index]
         
-        return median, errors, tau, f0
+        return median, errors, tau, period0
 
     def sine_parameter_time_series(self):
         """
@@ -323,7 +326,7 @@ class Sinusoid_Period_Finder:
         ndim = 4
         fig, axes = plt.subplots(4, figsize=(10, 7), sharex=True)
         samples = self.sampler.get_chain()
-        labels = ["Amplitude", "Phase", "Midline", "Frequency"]
+        labels = ["Amplitude", "Phase", "Midline", "Period"]
         for i in range(ndim):
             ax = axes[i]
             ax.plot(samples[:, :, i], "k", alpha=0.3) # low opacity so we can see walker paths clearly
@@ -336,7 +339,7 @@ class Sinusoid_Period_Finder:
         """
         First diagnostic plot: corner plot to analyse quality of fit.
         """
-        labels = ["Amplitude", "Phase", "Midline", "Frequency"]
+        labels = ["Amplitude", "Phase", "Midline", "Period"]
         fig = corner.corner(
             self.flat_samples, labels=labels, show_titles=True, # displays uncertainties
             quantiles = [0.025, 0.5, 0.975], # 0.025-0.975 ~ 2σ gaussian error, 0.5 is the median
@@ -352,7 +355,7 @@ class Sinusoid_Period_Finder:
 
         # generate some plotting data
         x = np.linspace(self.time.min(), self.time.max(), 100)
-        y = self.sinusoid_model(x, self.mc_a0, self.mc_p0, self.mc_m0, self.mc_f0)
+        y = self.sinusoid_model(x, self.mc_a0, self.mc_p0, self.mc_m0, self.mc_period0)
 
         ax.errorbar(self.time, self.magnitude, yerr=self.magnitude_error, fmt='o', 
                     label='Original Data', color='black', capsize=5)
