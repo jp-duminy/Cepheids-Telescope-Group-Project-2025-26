@@ -39,7 +39,7 @@ class DustExtinction:
         2.09002*(y**7)
 
         A_B = A_V * (a + b / self.R_V)
-
+        
         return A_B
 
     
