@@ -12,6 +12,8 @@ class DustExtinction:
         self.lambda_V = 0.55 
         self.colour_excess = colour_excess
         self.filter = filter
+        if self.filter != "B" and self.filter != "V":
+            raise ValueError(f"The band filter must be either B or V")
 
     def compute_extinction_mag(self):
 
@@ -19,6 +21,10 @@ class DustExtinction:
 
         #V-band extinction
         A_V = self.R_V * self.colour_excess
+
+        if self.filter == "V":
+            return A_V
+        
         #B-band extinction
         x = 1 / self.lambda_B
 
@@ -34,9 +40,6 @@ class DustExtinction:
 
         A_B = A_V * (a + b / self.R_V)
 
-        if self.filter == "V":
-            return A_V
-        elif self.filter == "B":
-            return A_B
+        return A_B
 
     
