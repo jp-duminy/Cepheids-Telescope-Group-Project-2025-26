@@ -1,3 +1,8 @@
+"""
+Do not run this, it is just a test idea for a full image reduction pipeline.
+This is a combination  of claude, previous years and stack overflow with ideas from existing files.
+"""
+
 import numpy as np
 from astropy.io import fits
 from pathlib import Path
@@ -73,7 +78,6 @@ class CalibrationSet:
         self.create_master_flat()
         return self
 
-
 class CalibrationManager:
     """
     Manages calibration frames, mapping observation nights to appropriate calibrations.
@@ -82,7 +86,7 @@ class CalibrationManager:
         self.calib_dir = Path(calibrations_dir)
         self.calibration_sets = {}
         self.night_to_calib_map = {}
-        
+
     def discover_calibrations(self, binning="1x1", filter_name="V"):
         """
         Automatically discover calibration directories.
@@ -645,17 +649,17 @@ if __name__ == "__main__":
 
 
 from pathlib import Path
-   
-   base = Path("/storage/teaching/TelescopeGroupProject/2025-26")
-   
-   # List observation nights
-   nights = sorted((base / "Cepheids").iterdir())
-   print("Observation nights:")
-   for n in nights:
-       print(f"  {n.name}")
-   
-   # List calibration directories
-   calibs = sorted((base / "Calibrations").iterdir())
-   print("\nCalibration directories:")
-   for c in calibs:
-       print(f"  {c.name}")
+
+base = Path("/storage/teaching/TelescopeGroupProject/2025-26")
+
+# List observation nights
+nights = sorted((base / "Cepheids").iterdir())
+print("Observation nights:")
+for n in nights:
+    print(f"  {n.name}")
+
+# List calibration directories
+calibs = sorted((base / "Calibrations").iterdir())
+print("\nCalibration directories:")
+for c in calibs:
+    print(f"  {c.name}")
