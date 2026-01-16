@@ -17,7 +17,7 @@ class Calibration_Set:
 
         self.bias_files = []
         self.flat_files = []
-        
+
         self.master_bias = None
         self.master_flat = None
 
@@ -28,14 +28,6 @@ class Calibration_Set:
         """
         trim = 50 # decided on 50 pixels
         return img[trim:-trim, trim:-trim]
-    
-    def img_stacker(self, imgs):
-        """
-        Stack images and return stack + median of stack.
-        """
-        stack = np.stack(imgs, axis=0)
-        median = np.median(stack, axis=0)
-        return stack, median
     
     def create_master_bias(self):
         """
@@ -53,7 +45,7 @@ class Calibration_Set:
 
         bias_frames = [self.img_trim(fits.getdata(f)) for f in bias_files]
         bias_stack = np.stack(bias_frames, axis=0)
-        self._master_bias = np.median(bias_stack, axis=0)
+        self.master_bias = np.median(bias_stack, axis=0)
         print(f"Master bias shape: {self.master_bias.shape}")
 
         return self.master_bias
@@ -64,21 +56,24 @@ class Calibration_Set:
         """
         if self.master_flat is not None:  # if this already exists
             return self.master_flat
-        
+
+        if self.master_bias is None:
+            self.create_master_bias() # since the flat-fielded images are bias-corrected we check whether master bias actually exists
+
         # Use the stored flat_files list instead of globbing
         if self.flat_files is None or len(self.flat_files) == 0:
             raise ValueError(f"No flat files specified for {self.name}")
-        
+
         flat_files = sorted(self.flat_files)
         print(f"{len(flat_files)} flat files found in {self.flat_dir}.")
 
         flat_frames = [
         self.img_trim(fits.getdata(f)) - self.master_bias
         for f in flat_files]
-        
+
         flat_stack = np.median(flat_frames, axis=0)
         normalisation = np.median(flat_stack)
-        self._master_flat = flat_stack / normalisation
+        self.master_flat = flat_stack / normalisation
         
         print(f"Master flat shape: {self.master_flat.shape}")
 
@@ -138,7 +133,7 @@ class Calibration_Manager:
         calib_set.bias_files = sorted(bias_files)
         calib_set.flat_files = sorted(flat_files)
     
-        self.calibration_sets[calib_name] = calib_set
+        self.calibration_sets[week_name] = calib_set
     
         return calib_set
     
@@ -146,7 +141,7 @@ class Calibration_Manager:
         """
         Map an observation night to its corresponding calibration set.
         Night name will be a file such as "2025_09_22" (first night)
-        Calibration name will be the week that night occured such as "Week1""
+        Calibration name will be the full calibration identifier (week, filter, binning)""
         """
         self.night_to_calib_map[night_name] = calib_name # assign the nights/weeks to a place in the dictionary in __init__
 
@@ -179,23 +174,29 @@ class Calibration_Manager:
             print(f"\n{name}:")
             calib_set.prepare()
  
-class CepheidDataOrganiser:
-
-    """Organises Cepheid files by number and night."""
-
+class Cepheid_Data_Organiser:
+    """
+    Organises Cepheid files by number and night.
+    """
     def __init__(self, cepheids_directory):
-        """Create path to Cepheid directory and find patterns in files of "Cepheid_(#)"."""
+        """
+        Create path to Cepheid directory and find patterns in files of "Cepheid_(#)".
+        """
         self.cepheids_directory = Path(cepheids_directory)
         self.cepheid_pattern = re.compile(r'Cepheids?_(\d+)', re.IGNORECASE) 
     
     def list_observation_nights(self):
-        """Sort all directories for nights in the Cepheids directory
-        in alphabetical order"""
+        """
+        Sort all directories for nights in the Cepheids directory
+        in alphabetical order
+        """
         nights = sorted([night for night in self.cepheids_directory.iterdir() if night.is_dir()])
         return nights
 
     def organise_night(self, night_directory):
-        """Organise each night's files based on Cepheid number"""
+        """
+        Organise each night's files based on Cepheid number
+        """
         cepheid_files = defaultdict(list)
         
         for file in sorted(Path(night_directory).glob("*.fits")):
@@ -207,8 +208,10 @@ class CepheidDataOrganiser:
         return dict(cepheid_files)
     
     def organise_all_nights(self):
-        """Organise all Cepheid files firstly by night, and then by Cepheid number. Returns
-        a list of files that correspond to each night+Cepheid."""
+        """
+        Organise all Cepheid files firstly by night, and then by Cepheid number. Returns
+        a list of files that correspond to each night+Cepheid.
+        """
         all_data = {}
         nights = self.list_observation_nights()
         
@@ -220,8 +223,32 @@ class CepheidDataOrganiser:
         
         return all_data
     
-    def filter_useful_images(file_list, min_sequence=5, method='last_n'):
-        """Static method""" 
+    @staticmethod
+    def filter_useful_images(file_list):
+        """
+        Find the burst of images by grouping images by exposure time.
+        """
+        # extract exposure times
+        exp_times = []
+        for fits_file in file_list:
+            with fits.open(fits_file) as hdul:
+                exp_time = hdul[0].header.get('EXPTIME', None)
+                exp_times.append((fits_file, exp_time))
+        
+        # group images by exposure time
+        exp_groups = defaultdict(list)
+        for fits_file, exp_time in exp_times:
+            if exp_time is not None:
+                exp_time_rounded = round(exp_time, 2)
+                exp_groups[exp_time_rounded].append(fits_file)
+        
+        # now find the largest group (this is the burst)
+        largest_group = max(exp_groups.values(), key=len, default=[])
+        print(f"{len(largest_group)} images in largest group.")
+
+        return largest_group
+
+            
     
 class CepheidImageReducer:
 
