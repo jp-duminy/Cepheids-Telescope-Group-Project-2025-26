@@ -223,7 +223,73 @@ class CepheidDataOrganiser:
     def filter_useful_images(file_list, min_sequence=5, method='last_n'):
         """Static method""" 
     
+class CepheidImageReducer:
+
+    """Perform bias and flat-field corrections on raw Cepheid images"""
+
+    def __init__(self, master_bias, master_flat_field, border=50):
+
+        """Load in calibration frames and border to trim images by."""
+        self.mstr_bias = master_bias
+        self.mstr_ff = master_flat_field
+        self.border = border
+
+    def perform_reduction(self, filename, trim = True):
+
+        """Perform data reduction on a single image"""
+
+        with fits.open(filename) as hdul:
+            data = hdul[0].data
+
+        if trim is True:
+            data = data[self.border:-self.border, self.border, -self.border]
+
+        bias_corrected_frame = data - self.mstr_bias
+        flat_fielded_frame = bias_corrected_frame / self.mstr_ff
+        science_frame = flat_fielded_frame
+
+        return science_frame
     
+class CepheidImageStacker:
+
+    """Stacks all science frames together to produce a single final image for each 
+    night + Cepheid."""
+
+    def stack_images(image_list, headers_list, method='mean'):
+
+        """Stacks images and combines headers"""
+
+        image_stack = np.stack(image_list, axis=0)
+        if method == 'mean':
+            final_image = np.mean(image_stack, axis=0) 
+        else:
+            final_image = np.median(image_stack, axis=0)
+
+        base_header = headers_list[0].copy()
+        base_header['TOTEXP'] = sum(h.get('EXPOSURE', 0) for h in headers_list)
+        base_header['MEANEXP'] = base_header['TOTEXP'] / len(headers_list)
+
+        gains = [h.get('GAIN', 0) for h in headers_list if 'GAIN' in h]
+        if gains:
+            base_header['MEANGAIN'] = float(np.mean(gains))
+
+        read_noises = [h.get('RDNOISE', 0) for h in headers_list if 'RDNOISE' in h]
+        if read_noises:
+            base_header['TOTRN'] = float(np.sqrt(np.sum(np.array(read_noises)**2)))
+
+        base_header['NSTACK'] = len(image_list)
+        base_header['COMMENT'] = f'Stacked {len(image_list)} images using {method}'
+
+        return final_image, base_header
+
+
+
+
+        
+            
+
+
+
 
 
 
