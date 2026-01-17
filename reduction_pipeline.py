@@ -339,9 +339,7 @@ def run_pipeline(
     base_path = Path(base_dir)
     cepheids_path = base_path / "Cepheids"
     calibrations_path = base_path / "Calibrations"
-    if output_dir is None:
-        output_dir = base_path / "Reduced"
-        output_path = Path(output_dir)
+    output_path = Path(output_dir)
 
     print("="*40)
     print("Beginning Cepheid Reduction")
@@ -392,7 +390,9 @@ def run_pipeline(
             print(f"\n No calibration mapping for {night_name}")
             continue
         
+        print("="*40)
         print(f"NIGHT: {night_name}")
+        print("="*40)
     
         # get calibrations for night
         try:
@@ -489,11 +489,11 @@ def run_pipeline(
                 print(f"    {night}: {n_imgs} images")
 
     if visualise:
-        quick_view_stacked_images(summary, stacked_images)
+        quick_view_stacked_images(stacked_images)
 
     return summary, stacked_images
     
-def quick_view_stacked_images(summary, stacked_images):
+def quick_view_stacked_images(stacked_images):
     """
     Quick visualisation of stacked images without saving to disk.
     """
@@ -503,51 +503,39 @@ def quick_view_stacked_images(summary, stacked_images):
     
     zscale = ZScaleInterval()
     
-    # create subplot for each individual cepheid
-    n_cepheids = len(stacked_images)
-    n_cols = min(4, n_cepheids)  # Max 4 columns
-    n_rows = (n_cepheids + n_cols - 1) // n_cols
-    
-    fig, axes = plt.subplots(n_rows, n_cols, 
-                            figsize=(5 * n_cols, 5 * n_rows))
-    
-    # Flatten axes for easier indexing
-    if n_cepheids == 1:
-        axes = [axes]
-    else:
+    for ceph_num, night_data in sorted(stacked_images.items()):
+        n_panels = len(night_data)
+        n_cols = min(5, n_panels)  # Max 4 columns
+        n_rows = (n_panels + n_cols - 1) // n_cols
+        
+        fig, axes = plt.subplots(n_rows, n_cols, 
+                                figsize=(5 * n_cols, 5 * n_rows))
         axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
-    
-    # Plot each Cepheid
-    for idx, (ceph_num, night_data) in enumerate(sorted(stacked_images.items())):
-        # If multiple nights, show the first night
-        # (or you could show all nights separately)
-        image_to_show = night_data[0]['image']
-        night_name = night_data[0]['night']
+
+        for idx, entry in enumerate(night_data):
+            image_to_show = entry['image']
+            night_name = entry['night']
         
-        if len(night_data) > 1:
-            title = f"Cepheid {ceph_num} - {night_name}\n({len(night_data)} nights total)"
-        else:
-            title = f"Cepheid {ceph_num} - {night_name}"
+            # Apply zscale
+            vmin, vmax = zscale.get_limits(image_to_show)
+            
+            # Plot
+            ax = axes[idx]
+            im = ax.imshow(image_to_show, cmap='gray', origin='lower', 
+                        vmin=vmin, vmax=vmax)
+            ax.set_title(f"{night_name}", fontsize=10)
+            ax.axis('off')
+            
+            # Add colourbar
+            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         
-        # Apply zscale
-        vmin, vmax = zscale.get_limits(image_to_show)
+        # Hide extra subplots
+        for i in range(idx, len(axes)):
+            axes[i].axis('off')
         
-        # Plot
-        ax = axes[idx]
-        im = ax.imshow(image_to_show, cmap='gray', origin='lower', 
-                      vmin=vmin, vmax=vmax)
-        ax.set_title(title, fontsize=10)
-        ax.axis('off')
-        
-        # Add colourbar
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    
-    # Hide extra subplots
-    for idx in range(n_cepheids, len(axes)):
-        axes[idx].axis('off')
-    
-    plt.tight_layout()
-    plt.show()
+        plt.suptitle(f"Cepheid {ceph_num}", fontsize=16)
+        plt.tight_layout()
+        plt.show()
 
 
 # Usage:
@@ -555,23 +543,32 @@ def quick_view_stacked_images(summary, stacked_images):
 if __name__ == "__main__":
 
     night_to_week_mapping = {
-    '2025_09_22': 'week1',
-    '2025_10_06': 'week3',
-    '2025_10_07': 'week3',
-    '2025_10_08': 'week3',
-    '2025_10_13': 'week4',
-    '2025_10_14': 'week4',
-    '2025_10_23': 'week5',
-    # select nights as appropriate
+    '2025-09-22': 'week1',
+    '2025-09-24': 'week1',
+    '2025-09-29': 'week2',
+    '2025-10-01': 'week2',
+    '2025-10-06': 'week3',
+    '2025-10-07': 'week3',
+    '2025-10-08': 'week3',
+    '2025-10-09': 'week3',
+    '2025-10-13': 'week4',
+    '2025-10-14': 'week4',
+    '2025-10-19': 'week4',
+    '2025-10-21': 'week5',
+    '2025-10-22': 'week5',
+    '2025-10-23': 'week5',
+    # should be 14 observation nights (includes random TA observations)
     }
 
     cepheid_nums= [
-    4
+    1, 2, 3, 4, 5, 6,
+    7, 8, 9, 10, 11
     ]
 
     summary, images = run_pipeline(
     base_dir="/storage/teaching/TelescopeGroupProject/2025-26",
     night_to_week_mapping=night_to_week_mapping,
+    output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids",
     cepheid_nums=cepheid_nums,
     visualise=True
     )
