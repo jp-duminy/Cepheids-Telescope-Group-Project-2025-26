@@ -2,9 +2,10 @@ import numpy as np
 from astropy.io import fits
 from pathlib import Path
 from collections import defaultdict
-from datetime import datetime
 import re
-import glob
+from astropy.visualization import ZScaleInterval
+import matplotlib.pyplot as plt
+    
 
 class Calibration_Set:
     """
@@ -248,59 +249,71 @@ class Cepheid_Data_Organiser:
 
         return largest_group
 
-            
+class Cepheid_Image_Reducer:
+    """
+    Apply image reduction to Cepheid .fits files
+    """
+    def __init__(self, calib_set, border=50):
+        """
+        Load in calibration frames and border to trim images by.
+        """
+        self.calib = calib_set
+        self.border = border # 50px chosen
+
+    def perform_reduction(self, filename):
+        """
+        Perform data reduction on a single image
+        """
+
+        with fits.open(filename) as hdul: # hdul is the header data unit list
+            data = hdul[0].data # extract data from header data unit
+            header = hdul[0].header.copy()
+
+        # trim the pixels off the image
+        trimmed = data[self.border:-self.border, self.border:-self.border]
+
+        # check whether this is appropriate syntax?
+        master_bias = self.calib.master_bias
+        master_flat = self.calib.master_flat
+
+        if master_bias is None or master_flat is None:
+            raise RuntimeError("Calibrations not prepared. Call prepare() first.")
+
+        # check images are same size
+        if trimmed.shape != master_bias.shape:
+            raise ValueError(f"Shape mismatch: {trimmed.shape} vs {master_bias.shape}")
+
+        # then apply corrections
+        bias_corrected = trimmed - master_bias
+        flat_corrected = bias_corrected / master_flat
+
+        return flat_corrected, header
     
-class CepheidImageReducer:
-
-    """Perform bias and flat-field corrections on raw Cepheid images"""
-
-    def __init__(self, master_bias, master_flat_field, border=50):
-
-        """Load in calibration frames and border to trim images by."""
-        self.mstr_bias = master_bias
-        self.mstr_ff = master_flat_field
-        self.border = border
-
-    def perform_reduction(self, filename, trim = True):
-
-        """Perform data reduction on a single image"""
-
-        with fits.open(filename) as hdul:
-            data = hdul[0].data
-
-        if trim is True:
-            data = data[self.border:-self.border, self.border, -self.border]
-
-        bias_corrected_frame = data - self.mstr_bias
-        flat_fielded_frame = bias_corrected_frame / self.mstr_ff
-        science_frame = flat_fielded_frame
-
-        return science_frame
-    
-class CepheidImageStacker:
-
-    """Stacks all science frames together to produce a single final image for each 
-    night + Cepheid."""
-
+class Cepheid_Image_Stacker:
+    """
+    Stacks all science frames together to produce a single final image for each 
+    night + Cepheid.
+    """
+    @staticmethod
     def stack_images(image_list, headers_list, method='mean'):
-
-        """Stacks images and combines headers"""
-
+        """
+        Stacks images and combines headers for photometry.
+        """
         image_stack = np.stack(image_list, axis=0)
         if method == 'mean':
-            final_image = np.mean(image_stack, axis=0) 
+            final_image = np.mean(image_stack, axis=0) # go with mean for now, potentially implement sigma clipping later
         else:
             final_image = np.median(image_stack, axis=0)
 
         base_header = headers_list[0].copy()
-        base_header['TOTEXP'] = sum(h.get('EXPOSURE', 0) for h in headers_list)
+        base_header['TOTEXP'] = sum(h.get('EXPTIME', 0) for h in headers_list)
         base_header['MEANEXP'] = base_header['TOTEXP'] / len(headers_list)
 
-        gains = [h.get('GAIN', 0) for h in headers_list if 'GAIN' in h]
+        gains = [h.get('GAIN', 0) for h in headers_list if 'GAIN' in h] # check if gain is in headers
         if gains:
             base_header['MEANGAIN'] = float(np.mean(gains))
 
-        read_noises = [h.get('RDNOISE', 0) for h in headers_list if 'RDNOISE' in h]
+        read_noises = [h.get('RDNOISE', 0) for h in headers_list if 'RDNOISE' in h] # check if read noise is in headers
         if read_noises:
             base_header['TOTRN'] = float(np.sqrt(np.sum(np.array(read_noises)**2)))
 
@@ -309,11 +322,260 @@ class CepheidImageStacker:
 
         return final_image, base_header
 
+def run_pipeline(
+    base_dir,
+    night_to_week_mapping,
+    binning="binning1x1",
+    filter_name="V",
+    output_dir=None,
+    cepheid_nums=None,
+    visualise=True
+):
+    """
+    Executes the complete cepheid reduction pipeline and displays final images.
+    """
 
+    # directories
+    base_path = Path(base_dir)
+    cepheids_path = base_path / "Cepheids"
+    calibrations_path = base_path / "Calibrations"
+    if output_dir is None:
+        output_dir = base_path / "Reduced"
+        output_path = Path(output_dir)
 
+    print("="*40)
+    print("Beginning Cepheid Reduction")
+    print("="*40)
 
+    print("="*40)
+    print(f"Creating Calibrations...")
+    print("="*40)
+    calib_mgr = Calibration_Manager(calibrations_path)
+    
+    # find unique weeks
+    weeks = sorted(set(night_to_week_mapping.values()))
+    print(f"\nWeeks to process: {weeks}") # expect 5 weeks!
+
+    # create calibration for each week
+    for week in weeks:
+        calib_mgr.week_calibrations(week, binning=binning, filter=filter_name) 
+    
+    # map nights to corresponding weeks
+    for night, week in night_to_week_mapping.items():
+        calib_mgr.map_night_to_week(night, week)
+
+    # prepare all calibrations
+    calib_mgr.prepare_all()
+
+    print("="*40)
+    print(f"Organising files...")
+    print("="*40)
+
+    organizer = Cepheid_Data_Organiser(cepheids_path)
+    all_nights_data = organizer.organise_all_nights()
+    
+    print(f"\nFound {len(all_nights_data)} observation nights:")
+    for night_name, ceph_data in all_nights_data.items():
+        mapping_status = "✓ mapped" if night_name in night_to_week_mapping else "✗ not mapped"
+        print(f"  {night_name}: {len(ceph_data)} Cepheids observed [{mapping_status}]")
+
+    print("="*40)
+    print(f"Processing nights...")
+    print("="*40)
+
+    summary = defaultdict(lambda: defaultdict(int))
+    stacked_images = {}
+
+    for night_name, ceph_data in all_nights_data.items():
+        # Skip nights without calibration mapping
+        if night_name not in night_to_week_mapping:
+            print(f"\n No calibration mapping for {night_name}")
+            continue
         
+        print(f"NIGHT: {night_name}")
+    
+        # get calibrations for night
+        try:
+            calib_set = calib_mgr.get_calibration_for_night(night_name)
+            print(f"Using calibrations: {calib_set.name}")
+        except KeyError as e:
+            print(f"Skipping night: {e}")
+            continue
+        
+        # create reducer object
+        reducer = Cepheid_Image_Reducer(calib_set)
+        
+        # create output directory
+        night_output = output_path / night_name
+        night_output.mkdir(parents=True, exist_ok=True)
+        
+        # process each cepheid individually
+        for ceph_num, all_files in sorted(ceph_data.items()):
+            # only select requested cepheids
+            if cepheid_nums is not None and ceph_num not in cepheid_nums:
+                continue
             
+            print(f"\nCepheid {ceph_num}:")
+            print(f"Total files found: {len(all_files)}")
+            
+            # select useful images (from burst, grouped by exposure time)
+            useful_files = organizer.filter_useful_images(all_files)
+            print(f"Selected {len(useful_files)} useful images")
+            
+            if len(useful_files) == 0:
+                print(f"No useful images found")
+                continue
+            
+            # now reduce each image
+            reduced_images = []
+            headers = []
+            
+            for i, fits_file in enumerate(useful_files, 1):
+                try:
+                    reduced, header = reducer.perform_reduction(fits_file)
+                    reduced_images.append(reduced)
+                    headers.append(header)
+                except Exception as e:
+                    print(f"Error on image {i} ({fits_file.name}): {e}")
+            
+            if len(reduced_images) == 0:
+                print(f"No valid images after reduction")
+                continue
+            
+            # stack images
+            stacked, combined_header = Cepheid_Image_Stacker.stack_images(
+                reduced_images, 
+                headers, 
+                method='mean'
+            )
+            
+            # save file
+            save_path = night_output / f"cepheid_{ceph_num:02d}_stacked.fits"
+            hdu = fits.PrimaryHDU(stacked, header=combined_header)
+            hdu.writeto(save_path, overwrite=True)
+            
+            total_exp = combined_header['TOTEXP']
+            n_stacked = combined_header['NSTACK']
+            
+            print(f"✓ Stacked {n_stacked} images (total exp: {total_exp:.1f}s)")
+            print(f"✓ Saved: {save_path.name}")
+            
+            # store data for visualisation
+            if ceph_num not in stacked_images:
+                stacked_images[ceph_num] = []
+            stacked_images[ceph_num].append({
+                'image': stacked,
+                'night': night_name,
+                'header': combined_header
+            })
+                
+            # update summary
+            summary[ceph_num][night_name] = n_stacked
+
+    print("\n" + "="*70)
+    print("Reduction summary diagnostics:")
+    print("="*70)
+    
+    if len(summary) == 0:
+        print("\nNo data was processed!")
+    else:
+        for ceph_num in sorted(summary.keys()):
+            nights_data = summary[ceph_num]
+            total_images = sum(nights_data.values())
+            print(f"\nCepheid {ceph_num}:")
+            print(f"  Total nights: {len(nights_data)}")
+            print(f"  Total stacked images: {total_images}")
+            for night, n_imgs in sorted(nights_data.items()):
+                print(f"    {night}: {n_imgs} images")
+
+    if visualise:
+        quick_view_stacked_images(summary, stacked_images)
+
+    return summary, stacked_images
+    
+def quick_view_stacked_images(summary, stacked_images):
+    """
+    Quick visualisation of stacked images without saving to disk.
+    """
+    if len(stacked_images) == 0:
+        print("No images to display!")
+        return
+    
+    zscale = ZScaleInterval()
+    
+    # create subplot for each individual cepheid
+    n_cepheids = len(stacked_images)
+    n_cols = min(4, n_cepheids)  # Max 4 columns
+    n_rows = (n_cepheids + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, 
+                            figsize=(5 * n_cols, 5 * n_rows))
+    
+    # Flatten axes for easier indexing
+    if n_cepheids == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+    
+    # Plot each Cepheid
+    for idx, (ceph_num, night_data) in enumerate(sorted(stacked_images.items())):
+        # If multiple nights, show the first night
+        # (or you could show all nights separately)
+        image_to_show = night_data[0]['image']
+        night_name = night_data[0]['night']
+        
+        if len(night_data) > 1:
+            title = f"Cepheid {ceph_num} - {night_name}\n({len(night_data)} nights total)"
+        else:
+            title = f"Cepheid {ceph_num} - {night_name}"
+        
+        # Apply zscale
+        vmin, vmax = zscale.get_limits(image_to_show)
+        
+        # Plot
+        ax = axes[idx]
+        im = ax.imshow(image_to_show, cmap='gray', origin='lower', 
+                      vmin=vmin, vmax=vmax)
+        ax.set_title(title, fontsize=10)
+        ax.axis('off')
+        
+        # Add colourbar
+        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    
+    # Hide extra subplots
+    for idx in range(n_cepheids, len(axes)):
+        axes[idx].axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+
+# Usage:
+
+if __name__ == "__main__":
+
+    night_to_week_mapping = {
+    '2025_09_22': 'week1',
+    '2025_10_06': 'week3',
+    '2025_10_07': 'week3',
+    '2025_10_08': 'week3',
+    '2025_10_13': 'week4',
+    '2025_10_14': 'week4',
+    '2025_10_23': 'week5',
+    # select nights as appropriate
+    }
+
+    cepheid_nums= [
+    4
+    ]
+
+    summary, images = run_pipeline(
+    base_dir="/storage/teaching/TelescopeGroupProject/2025-26",
+    night_to_week_mapping=night_to_week_mapping,
+    cepheid_nums=cepheid_nums,
+    visualise=True
+    )
+
 
 
 
