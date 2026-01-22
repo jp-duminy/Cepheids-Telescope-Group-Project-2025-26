@@ -1,11 +1,10 @@
 import numpy as np
 from photutils.aperture import CircularAperture as circ_ap, CircularAnnulus as circ_ann, \
-    aperture_photometry as ap, ApertureStats as stats, \
-    RectangularAperture as rect_ap
+    aperture_photometry as ap, RectangularAperture as rect_ap
 from photutils.centroids import centroid_2dg
 import photutils.psf as psf
 import astropy.io.fits as fits
-import astropy.wcs as wcs
+from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 
 class AperturePhotometry: 
@@ -35,16 +34,14 @@ class AperturePhotometry:
         #Normalise to cts per second
         self.data = data / float(header["EXPTIME"])
 
-    def get_pixel_coords(self, WCS, RA, Dec, origin = 0):
+        self.wcs = WCS(header)
+
+    def get_pixel_coords(self, RA, Dec):
         """Converts world coordinates of targets (RA, Dec) to pixel coordinates (x, y). 
-        Requires argument of a WCS object and RA & Dec as seperate arrays
-        (see wcs.WCS documentation)."""
-        if isinstance(RA, float) == False or isinstance(Dec, float) == False:
-            raise TypeError(f"These coordinates must be floats. If in arrays, try \
-                            doing them one at a time.")
+        Uses WCS created from astropy.wcs.WCS in conjunction with fits header keywords."""
         
-        x, y = WCS.wcs_world2pix(RA, Dec, origin)
-        #origin is 0 for numpy array, 1 for FITS file
+        x, y = self.wcs.world_to_pixel_values(RA, Dec)
+
         return x, y
         #NB: FITS file might by upside down by the time this is used, could cause issues. 
     
