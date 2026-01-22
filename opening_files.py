@@ -8,18 +8,32 @@ class CepheidFileGrouper:
         self.pattern = re.compile(r"Cepheids_(\d+)_00")
         self.groups = defaultdict(list)
 
-    def discover_files(self):
-        for root, _, files in os.walk(self.base_dir):
-            for fname in files:
-                if fname.lower().endswith(".fits"):
-                    match = self.pattern.search(fname)
-                    if match:
-                        cepheid_number = match.group(1)   # e.g., "7"
-                        fullpath = os.path.join(root, fname)
-                        self.groups[cepheid_number].append(fullpath)
+    def find_ceph(folder, nums):
+        """
+        Find all FITS files for the given Cepheid numbers.
+    
+        nums = list of numbers as strings or ints, e.g. ["7"] or [7]
+        """
+        nums = set(str(n) for n in nums)  # convert numbers to strings for matching
+    
+        pattern = re.compile(r"Cepheids_(\d+)_00")   # match only numeric Cepheids
+        matches = []
 
-        # Sort lists so you keep chronological order
-        for key in self.groups:
-            self.groups[key].sort()
+        for fname in os.listdir(folder):
+            if not fname.lower().endswith(".fits"):
+                continue
 
-        return dict(self.groups)
+            m = pattern.search(fname)
+            if not m:
+                continue
+
+            cepheid_number = m.group(1)
+
+            # Keep only desired numeric Cepheids
+            if cepheid_number in nums:
+                matches.append(os.path.join(folder, fname))
+
+        # sort for predictable order
+        matches.sort()
+
+        return matches

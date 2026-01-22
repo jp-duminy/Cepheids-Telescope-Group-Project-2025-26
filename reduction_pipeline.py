@@ -184,7 +184,7 @@ class Cepheid_Data_Organiser:
         Create path to Cepheid directory and find patterns in files of "Cepheid_(#)".
         """
         self.cepheids_directory = Path(cepheids_directory)
-        self.cepheid_pattern = re.compile(r'Cepheids?_(\d+)', re.IGNORECASE) 
+        self.cepheid_pattern = re.compile(r'Cepheids?_(\d+).*?_Filter_V_', re.IGNORECASE)
     
     def list_observation_nights(self):
         """
@@ -561,14 +561,13 @@ if __name__ == "__main__":
     }
 
     cepheid_nums= [
-    1, 2, 3, 4, 5, 6,
-    7, 8, 9, 10, 11
+    1, 2, 3, 4, 5
     ]
 
     summary, images = run_pipeline(
     base_dir="/storage/teaching/TelescopeGroupProject/2025-26",
     night_to_week_mapping=night_to_week_mapping,
-    output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids",
+    output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_test",
     cepheid_nums=cepheid_nums,
     visualise=True
     )

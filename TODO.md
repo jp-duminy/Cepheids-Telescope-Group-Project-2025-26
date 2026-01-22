@@ -31,7 +31,7 @@ Cepheid 5 (flipping issues)
 
 **Targets**
 - Add standard star pathing (should be fairly straightforward)
-- Adjust cepheid analysis to only take B-filter images
+- ~~Adjust cepheid analysis to only take V-filter images~~ Mimi and Amy 22/01
 - Double check whether the pipeline follows proper protocol (is correction applied in correct order etc.)
 - Incorporate sigma clipping to remove cosmic rays
 - Find a method to deal with wind shear?
