@@ -18,3 +18,5 @@ Bug fixing:
 - ~~Rewrite code to take periods instead of frequency (ugh)~~ 13/01
 - ~~Clip walker positions to avoid walkers being initialised outside of parameter space~~ 15/01
 - ~~Investigate and fix median sampling error~~ 13/01
+
+Mimi test
