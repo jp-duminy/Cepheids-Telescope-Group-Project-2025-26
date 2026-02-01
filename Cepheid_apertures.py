@@ -50,7 +50,7 @@ class AperturePhotometry:
         other sources. Plot masked data as heatmap if plot == True, don't otherwise"""
         aperture = rect_ap((x,y), width, width)
         mask = aperture.to_mask(method = "center")
-        masked_data = mask.multiply(self.data)
+        masked_data = mask.cutout(self.data)
     
         if plot == True:
             plt.imshow(masked_data)
@@ -58,19 +58,25 @@ class AperturePhotometry:
         
         return masked_data
 
-    def get_centroid_and_fwhm(self):
+    def get_centroid_and_fwhm(self, data, plot = False):
         """Get Gaussian centroid of target source around which to
         centre the aperture, and the FWHM of the target source centred around
         the centroid."""
-        centroid = centroid_2dg(self.data) #Should be masked
-        fwhm = psf.fit_fwhm(data = self.data, xypos = centroid).item()
+        #Crude bkgd subtraction
+        crude_sub_data = data - np.mean(data)
+        centroid = centroid_2dg(crude_sub_data) #Should be masked
+        fwhm = psf.fit_fwhm(data = crude_sub_data, xypos = centroid).item()
         #Function expects data to be bkgd subtracted
         #Nan/inf values automatically masked
+        if plot == True:
+            plt.imshow(data)
+            plt.plot(centroid[0], centroid[1], marker = "+", color = "r")
+            plt.show()
 
         return centroid, fwhm
     
-    def aperture_photometry(self, centroid, ap_rad, ceph_name,
-                            date, inner=1.5, outer=2, plot = True, savefig = False):
+    def aperture__photometry(self, data, centroid, ap_rad, ceph_name = None,
+                            date = None, inner=1.5, outer=2, plot = True, savefig = False):
         """Main method: Using the determined centroids and FWHM of the source, Sum the fluxes
         through the circular apertures and annuli."""
 
@@ -85,7 +91,7 @@ class AperturePhotometry:
         #Plot apertures
         if plot == True:
             fig, ax = plt.subplots()
-            ax.imshow(self.data, origin='lower', interpolation='nearest', cmap='viridis') # Display the image
+            ax.imshow(data, origin='lower', interpolation='nearest', cmap='viridis') # Display the image
             target_aperture.plot(ax=ax, color='red')
             sky_annulus.plot(ax=ax, color = "white")
             plt.title(f"{ceph_name} taken on {date}")
@@ -94,17 +100,17 @@ class AperturePhotometry:
             plt.show()
 
         #Sum flux through apertures
-        total_flux = ap(self.data, target_aperture)["aperture_sum"].value
-        annulus_flux = ap(self.data, sky_annulus)["aperture_sum"].value
+        total_flux = ap(data, target_aperture)["aperture_sum"].value
+        annulus_flux = ap(data, sky_annulus)["aperture_sum"].value
         #Get sky background
         mean_sky_bckgnd_per_pixel = annulus_flux / sky_annulus.area
         total_sky_bckgnd = mean_sky_bckgnd_per_pixel * target_aperture.area
 
         target_flux = total_flux - total_sky_bckgnd 
 
-        return target_flux, mean_sky_bckgnd_per_pixel, target_aperture.area, sky_annulus.area
+        return target_flux, target_aperture.area, mean_sky_bckgnd_per_pixel, sky_annulus.area
     
-    def curve_of_growth(self, ceph_name, date, savefig = False):
+    def curve_of_growth(self, data, ceph_name, date, savefig = False):
         """To calculate and plot the sky-subtracted flux obtained in a series
         of increasingly large apertures."""
 
@@ -112,11 +118,11 @@ class AperturePhotometry:
         sky_sub_ap_flux = np.zeros(16)
         inner = 1.4
         outer = 2.0
-        centroid, fwhm = self.get_centroid_and_fwhm()
+        centroid, fwhm = self.get_centroid_and_fwhm(data)
 
         for index, factor in enumerate(np.linspace(0.1, 4, 16)):
             aperture_radius[index] = factor*fwhm
-            flux = self.aperture_photometry(centroid, ap_rad = factor*fwhm, inner=inner, outer=outer, plot = False)[0]
+            flux = self.aperture__photometry(data, centroid, ap_rad = factor*fwhm, inner=inner, outer=outer, plot = False)[0]
             sky_sub_ap_flux[index] = flux
 
         normalised_ssaf = sky_sub_ap_flux / np.max(sky_sub_ap_flux)
