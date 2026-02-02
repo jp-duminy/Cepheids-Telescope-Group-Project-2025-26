@@ -79,6 +79,7 @@ def fit_extinction_weighted(airmass, Vmag, m_inst, m_err):
     results = wls_model.fit()
     Z, k = results.params
     Z_err, k_err = results.bse
+    #Comment
 
     Z_airmass1 = Z + k * 1.0
     Z_airmass1_err = np.sqrt(Z_err ** 2 + k_err ** 2)
