@@ -177,7 +177,7 @@ if __name__ == "__main__":
                 # Photometry
                 # --------------------------------------------------
                 # Before calling get_centroid_and_fwhm()
-
+                """
                 # not sure about this?
                 data = ap_obj.data
                 ny, nx = data.shape
@@ -187,10 +187,11 @@ if __name__ == "__main__":
                 if nx % 2 == 0:
                     data = data[:, :nx-1]
                 ap_obj.data = data  # replace the data in the object
+                """
 
-
-                centroid, fwhm = ap_obj.get_centroid_and_fwhm()
+                centroid, fwhm = ap_obj.get_centroid_and_fwhm(ap_obj.data, plot=True)
                 ap_rad = 2.0 * fwhm
+
 
                 target_flux, sky_per_pix, ap_area, ann_area = ap_obj.aperture_photometry(
                     centroid=centroid,
