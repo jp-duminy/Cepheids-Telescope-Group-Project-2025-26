@@ -14,6 +14,8 @@ Requires:
 import numpy as np
 import csv
 import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 # Import your existing FITS metadata / airmass code
 import AirmassInfo as am
@@ -238,7 +240,7 @@ if __name__ == "__main__":
     flux_csv = "path/to/cepheid_fluxes.csv" # Input flux measurements (CHANGE)
     output_csv = "corrected_magnitudes.csv"
 
-    test_zero_point_and_extinction() # Comment/uncomment as needed
+    #test_zero_point_and_extinction()  Comment/uncomment as needed
 
     """
     Assuming flux is stored in a CSV with columns: 
