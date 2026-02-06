@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import csv
 import statsmodels.api as sm
 from matplotlib.lines import Line2D
+import AirmassInfo
 
 class AperturePhotometry: 
 
@@ -248,18 +249,24 @@ class AndromedaFilterCorrection:
         return colour, colour_uncert
 
 class Airmass:
+
     """Extract airmass data from fits header"""
+
     def __init__(self, filename):
-        with fits.open(filename) as hdul:
-            header = hdul[0].header 
+        """Initialise filename, airmass, and other values"""
+        self.filename = filename
+        self.block = AirmassInfo().process_fits(filename)
+        '''block = (
+                f"Object;        {obj}\n"
+                f"RA (h:m:s);    {ra_str}\n"
+                f"DEC (d:m:s);   {dec_str}\n"
+                f"Date Obs;      {t.iso.split('.')[0]}\n"
+                f"Altitude (°);  {alt:.2f}\n"
+                f"Airmass;       {airmass:.2f}\n"
+            )'''
+        self.airmass = float(self.block.split("Airmass;")[1].strip())
         
-        if "AIRMASS" not in header:
-            raise AttributeError("AIRMASS doesn't exist in this header. Brill.")
-
-        self.airmass = header["AIRMASS"]
-
- 
-    def fit_extinction_weighted(airmass, Vmag, m_inst, m_err):
+    def fit_extinction_weighted(self, Vmag, m_inst, m_err):
         """
         Weighted fit to determine atmospheric extinction coefficient (k)
         and photometric zero-point (Z).
@@ -298,7 +305,7 @@ class Airmass:
         """
 
         # Convert to numpy arrays
-        airmass = np.asarray(airmass)
+        airmass = np.asarray(self.airmass)
         Vmag = np.asarray(Vmag) #Magnitudes for standard stars
 
         # Dependent variable
@@ -320,7 +327,7 @@ class Airmass:
         Z_airmass1_err = np.sqrt(Z_err ** 2 + k_err ** 2)
         return k, Z_airmass1, k_err, Z_airmass1_err
         
-    def plot_atmospheric_extinction(airmass, Vmag, counts, count_err, exptime):
+    def plot_atmospheric_extinction(self, Vmag, m_inst, m_err, exptime):
         """
         Plot atmospheric extinction fit.
 
@@ -340,18 +347,16 @@ class Airmass:
         import matplotlib.pyplot as plt
 
         k, Z, Z1, k_err, Z_err = self.fit_extinction_weighted(
-            airmass,
             Vmag,
-            counts,
-            count_err,
+            m_inst,
+            m_err,
             exptime
         )
 
-        m_inst = -2.5 * np.log10(counts / exptime)
         y = Vmag - m_inst
 
-        plt.errorbar(airmass, y, yerr=1.086 * (count_err / counts), fmt='o', label='Data')
-        x_fit = np.linspace(min(airmass), max(airmass), 100)
+        plt.errorbar(self.airmass, y, yerr=m_err, fmt='o', label='Data')
+        x_fit = np.linspace(min(self.airmass), max(self.airmass), 100)
         y_fit = Z + k * x_fit
         plt.plot(x_fit, y_fit, 'r-', label=f'Fit: k={k:.3f}±{k_err:.3f}, Z(airmass=1)={Z1:.2f}')
         plt.xlabel('Airmass')
@@ -361,7 +366,7 @@ class Airmass:
         plt.grid()
         plt.show()
 
-    def plot_parameter_space(airmass, Vmag, counts, count_err, exptime):
+    def plot_parameter_space(self, Vmag, m_inst, m_err, exptime):
         '''
         Plot parameter space for extinction coefficient (k) and zero-point (Z)
         as rings of standard deviations (1σ, 2σ, 3σ).
@@ -384,10 +389,9 @@ class Airmass:
         '''
 
         k_best, Z_best, Z1_best, k_err, Z_err = self.fit_extinction_weighted(
-            airmass,
             Vmag,
-            counts,
-            count_err,
+            m_inst,
+            m_err,
             exptime
         )
 
@@ -397,13 +401,11 @@ class Airmass:
 
         chi2_map = np.zeros(K.shape)
 
-        m_inst = -2.5 * np.log10(counts / exptime)
         y = Vmag - m_inst
-        m_err = 1.086 * (count_err / counts)
 
         for i in range(K.shape[0]):
             for j in range(K.shape[1]):
-                model = ZM[i,j] + K[i,j] * airmass
+                model = ZM[i,j] + K[i,j] * self.airmass
                 chi2_map[i,j] = np.sum(((y - model) / m_err) ** 2)
 
         chi2_min = np.min(chi2_map)
@@ -420,11 +422,3 @@ class Airmass:
         plt.title('Parameter Space for k and Z')
         plt.grid()
         plt.show()
-
-
-    
-
-
-        
-
-        
