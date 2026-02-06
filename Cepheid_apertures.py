@@ -252,10 +252,10 @@ class Airmass:
 
     """Extract airmass data from fits header"""
 
-    def __init__(self, filename, Vmag, m_inst, m_err):
+    def __init__(self, fits_path, Vmag, m_inst, m_err):
         """Initialise filename, airmass, and other values"""
-        self.filename = filename
-        self.block = AirmassInfo().process_fits(filename)
+        self.filename = fits_path
+        self.block = AirmassInfo().process_fits(fits_path)
         '''block = (
                 f"Object;        {obj}\n"
                 f"RA (h:m:s);    {ra_str}\n"
