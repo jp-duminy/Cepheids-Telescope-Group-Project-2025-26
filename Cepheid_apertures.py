@@ -10,6 +10,7 @@ import csv
 import statsmodels.api as sm
 from matplotlib.lines import Line2D
 import AirmassInfo
+from astropy.stats import sigma_clipped_stats
 
 class AperturePhotometry: 
 
@@ -81,8 +82,10 @@ class AperturePhotometry:
     
     def aperture_photometry(self, data, centroid, ap_rad, ceph_name = None,
                             date = None, inner=1.5, outer=2, plot = True, savefig = False):
-        """Main method: Using the determined centroids and FWHM of the source, Sum the fluxes
-        through the circular apertures and annuli."""
+        """
+        Main method: Using the determined centroids and FWHM of the source, Sum the fluxes
+        through the circular apertures and annuli.
+        """
 
         if inner < 1 or outer < 1:
             raise ValueError(f"inner and outer constants must both be > 1")
@@ -92,7 +95,7 @@ class AperturePhotometry:
         #inner/outer are multiplicative constants to scale the size of the aperture.
         #Inner should be ~1.5, outer ~2.
 
-        #Plot apertures
+        # plot apertures
         if plot == True:
             fig, ax = plt.subplots()
             ax.imshow(data, origin='lower', interpolation='nearest', cmap='viridis') # Display the image
@@ -103,11 +106,20 @@ class AperturePhotometry:
                 plt.savefig(f"{ceph_name}_{date}")
             plt.show()
 
-        #Sum flux through apertures
         total_flux = ap(data, target_aperture)["aperture_sum"].value
-        annulus_flux = ap(data, sky_annulus)["aperture_sum"].value
-        #Get sky background
-        mean_sky_bckgnd_per_pixel = annulus_flux / sky_annulus.area
+
+        # sigma clipping to produce an even background subtraction
+        annulus_mask = sky_annulus.to_mask(method='center')
+        annulus_data = annulus_mask.multiply(data)
+        annulus_data_1d = annulus_data[annulus_mask.data > 0]
+
+        mean_sky, median_sky, std_sky = sigma_clipped_stats(
+        annulus_data_1d, 
+        sigma=3.0, 
+        maxiters=5
+        ) # keep other variables for completeness
+
+        mean_sky_bckgnd_per_pixel = mean_sky
         total_sky_bckgnd = mean_sky_bckgnd_per_pixel * target_aperture.area
 
         target_flux = total_flux - total_sky_bckgnd 
