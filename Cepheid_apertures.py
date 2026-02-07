@@ -119,7 +119,7 @@ class AperturePhotometry:
         maxiters=5
         ) # keep other variables for completeness
 
-        mean_sky_bckgnd_per_pixel = mean_sky
+        mean_sky_bckgnd_per_pixel = median_sky # after sigma clipping still take median in case outliers survive
         total_sky_bckgnd = mean_sky_bckgnd_per_pixel * target_aperture.area
 
         target_flux = total_flux - total_sky_bckgnd 
