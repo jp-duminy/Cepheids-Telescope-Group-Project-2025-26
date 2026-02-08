@@ -14,6 +14,8 @@ Requires:
 import numpy as np
 import csv
 import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 # Import your existing FITS metadata / airmass code
 import AirmassInfo as am
@@ -130,6 +132,69 @@ def plot_atmospheric_extinction(airmass, Vmag, counts, count_err, exptime):
     plt.grid()
     plt.show()
 
+#-------------------------------------------------------------
+# Plot Parameter Space for k and Z as rings of standard deviations
+#-------------------------------------------------------------
+def plot_parameter_space(airmass, Vmag, counts, count_err, exptime):
+    '''
+    Plot parameter space for extinction coefficient (k) and zero-point (Z)
+    as rings of standard deviations (1σ, 2σ, 3σ).
+    Parameters
+    ----------
+    airmass : array-like
+        Airmass values
+    Vmag : array-like
+        Catalog V magnitudes
+    counts : array-like
+        Measured counts
+    count_err : array-like
+        Uncertainty in counts
+    exptime : array-like
+        Exposure times (seconds)
+    
+    Returns
+    -------
+    None
+    '''
+
+    k_best, Z_best, Z1_best, k_err, Z_err = fit_extinction_weighted(
+        airmass,
+        Vmag,
+        counts,
+        count_err,
+        exptime
+    )
+
+    k_vals = np.linspace(k_best - 3*k_err, k_best + 3*k_err, 100)
+    Z_vals = np.linspace(Z_best - 3*Z_err, Z_best + 3*Z_err, 100)
+    K, ZM = np.meshgrid(k_vals, Z_vals)
+
+    chi2_map = np.zeros(K.shape)
+
+    m_inst = -2.5 * np.log10(counts / exptime)
+    y = Vmag - m_inst
+    m_err = 1.086 * (count_err / counts)
+
+    for i in range(K.shape[0]):
+        for j in range(K.shape[1]):
+            model = ZM[i,j] + K[i,j] * airmass
+            chi2_map[i,j] = np.sum(((y - model) / m_err) ** 2)
+
+    chi2_min = np.min(chi2_map)
+    delta_chi2 = chi2_map - chi2_min
+
+    plt.contour(K, ZM, delta_chi2, levels=[2.30, 6.17, 11.8], colors=['blue', 'orange', 'red'])
+    custom_lines = [Line2D([0], [0], color='blue', lw=2),
+                    Line2D([0], [0], color='orange', lw=2),
+                    Line2D([0], [0], color='red', lw=2)]
+    plt.legend(custom_lines, ['1σ', '2σ', '3σ'])
+    plt.plot(k_best, Z_best, '.', markersize=10, label='Best Fit')
+    plt.xlabel('Extinction Coefficient k')
+    plt.ylabel('Zero-point Z')
+    plt.title('Parameter Space for k and Z')
+    plt.grid()
+    plt.show()
+
 # ------------------------------------------------------------
 # Testing atmospheric extinction recovery
 # ------------------------------------------------------------
@@ -175,7 +240,7 @@ if __name__ == "__main__":
     flux_csv = "path/to/cepheid_fluxes.csv" # Input flux measurements (CHANGE)
     output_csv = "corrected_magnitudes.csv"
 
-    test_zero_point_and_extinction() # Comment/uncomment as needed
+    #test_zero_point_and_extinction()  Comment/uncomment as needed
 
     """
     Assuming flux is stored in a CSV with columns: 

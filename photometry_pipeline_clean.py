@@ -100,8 +100,8 @@ class CepheidPhotometryPipeline:
             
             # Aperture photometry
             ap_radius = 2.0 * fwhm
-            target_flux, sky_per_pix, ap_area, ann_area = ap.aperture__photometry(
-                data = ap.data,
+            target_flux, ap_area, sky_per_pix, ann_area = ap.aperture_photometry(
+                data=ap.data,
                 centroid=centroid_global,
                 ap_rad=ap_radius,
                 ceph_name=f"cepheid_{cepheid_id}",
@@ -263,10 +263,8 @@ def build_cepheid_catalog():
     print()
     return catalog
 
-
 if __name__ == "__main__":
-    
-    print(np.log(0))
+
     # Configuration
     DATA_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_test"
     OUTPUT_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_P"

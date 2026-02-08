@@ -246,7 +246,7 @@ def get_centroid_and_fwhm(self, data, plot=False):
 #### Fix 2: Validate Flux and Handle Failures
 
 ```python
-def aperture__photometry(self, data, centroid, ap_rad, ...):
+def aperture_photometry(self, data, centroid, ap_rad, ...):
     # ... existing aperture setup ...
     
     # Sigma-clip sky annulus
@@ -303,7 +303,7 @@ print(f"Negative pixels: {np.sum(ap.data < 0)}")
 centroid, fwhm = ap.get_centroid_and_fwhm(ap.data, plot=True)
 print(f"FWHM: {fwhm:.2f} pixels")
 
-result = ap.aperture__photometry(
+result = ap.aperture_photometry(
     ap.data, centroid, ap_rad=2.5*fwhm,
     inner=2.5, outer=4.0, plot=True
 )
