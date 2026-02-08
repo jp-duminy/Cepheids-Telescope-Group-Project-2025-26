@@ -20,7 +20,7 @@ import re
 
 from Cepheid_apertures import AperturePhotometry
 from Cepheid_apertures import Airmass
-import AirmassInfo
+from AirmassInfo import AirmassInfo
 
 
 class CepheidPhotometryPipeline:
@@ -103,7 +103,7 @@ class CepheidPhotometryPipeline:
             
             # Aperture photometry
             ap_radius = 2.0 * fwhm
-            target_flux, ap_area, sky_per_pix, ann_area = ap.aperture__photometry(
+            target_flux, ap_area, sky_per_pix, ann_area = ap.aperture_photometry(
                 data=ap.data,
                 centroid=centroid_global,
                 ap_rad=ap_radius,
@@ -316,41 +316,41 @@ class StandardStarPhotometryPipeline:
             stack_size = ap.header.get("NSTACK", 1)
             time_obs = ap.header.get("DATE-OBS")
 
-            block = AirmassInfo().process_fits(fits_path)
+            print(f"Test")
+            airmass_info = AirmassInfo(fits_path.name)
+            block = airmass_info.process_fits(fits_path)
             airmass = float(block.split("Airmass;")[1].strip())
-            
+            print(airmass)
+            print(f"Test")
             if time_obs is None:
                 raise ValueError("No DATE-OBS in header")
-            
+            print(f"Test")
             # Find star position in image
             x_guess, y_guess = ap.get_pixel_coords(coord.ra.deg, coord.dec.deg)
-            
+            print(f"Test")
             # Check if star is actually on the detector
             ny, nx = ap.data.shape
             if not (0 <= x_guess < nx and 0 <= y_guess < ny):
                 print(f"  ⚠️  Standard {standard_id} not in field of view")
                 return None
-            
+            print(f"Test")
             # Create cutout around star
-            cutout, x_offset, y_offset = self.extract_cutout(
+            masked_data = ap.mask_data_and_plot(x_guess, y_guess, width = 3996, plot = True)
+            
+            """self.extract_cutout(
                 ap.data, x_guess, y_guess, half_size=25
             )
 
             if cutout is None:                                                                                                                                                  
-                return None
-            
+                return None"""
+            print(f"Test")
             # Measure centroid and FWHM in cutout
-            centroid_local, fwhm = ap.get_centroid_and_fwhm(cutout)
-            
-            # Convert back to full-image coordinates
-            centroid_global = (
-                centroid_local[0] + x_offset,
-                centroid_local[1] + y_offset
-            )                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+            centroid_local, fwhm = ap.get_centroid_and_fwhm(masked_data, plot = True)
+            print(f"Test P")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
             
             # Aperture photometry
             ap_radius = 2.0 * fwhm
-            target_flux, ap_area, sky_per_pix, ann_area = ap.aperture__photometry(
+            target_flux, ap_area, sky_per_pix, ann_area = ap.aperture_photometry(
                 data=ap.data,
                 centroid=centroid_global,
                 ap_rad=ap_radius,
@@ -508,10 +508,10 @@ def build_standard_catalog():
     
     catalog_data = {
         "Standard_num": ["114176", "SA111775", "F_108", "SA112_595", "GD_246", "G93_48", "G156_31"],
-        "RA": ["22 43 11", "19 37 17", "23 16 12", "20 41 19", 
-               "23 12 21.6", "21 52 25.4", "22 38 28"],
+        "RA": ["22 43 11.0", "19 37 17.0", "23 16 12.0", "20 41 19.0", 
+               "23 12 21.6", "21 52 25.4", "22 38 28.0"],
         "Dec": ["+00 21 16.0", "+00 11 14.0", "-01 50 35.0", "+00 16 11.0", 
-                "+10 47 04", " +02 23 23", "-15 19 17"]
+                "+10 47 04.0", " +02 23 23.0", "-15 19 17.0"]
     }
     
     catalog = {}
@@ -545,9 +545,9 @@ if __name__ == "__main__":
     print("=" * 60)
     pipeline = StandardStarPhotometryPipeline(DATA_DIR, OUTPUT_DIR, standard_catalog)
     pipeline.run()
-
+    
     # Configuration
-    DATA_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_test"
+    DATA_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids"
     OUTPUT_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_P"
     
     # Build catalog
