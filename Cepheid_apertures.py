@@ -64,13 +64,17 @@ class AperturePhotometry:
         return masked_data
 
     def get_centroid_and_fwhm(self, data, plot = False):
-        """Get Gaussian centroid of target source around which to
+        """
+        Get Gaussian centroid of target source around which to
         centre the aperture, and the FWHM of the target source centred around
-        the centroid. data should be masked_data"""
-        #Crude bkgd subtraction
-        crude_sub_data = data - np.mean(data)
-        centroid = centroid_2dg(crude_sub_data) #Should be masked
-        fwhm = psf.fit_fwhm(data = crude_sub_data, xypos = centroid).item()
+        the centroid. data should be masked_data
+        """
+        # sigma-clipped background subtraction
+        _, median, _ = sigma_clipped_stats(data, sigma=3.0, maxiters=5)
+        subtracted = np.maximum(data - median, 0)
+
+        centroid = centroid_2dg(subtracted) #Should be masked
+        fwhm = psf.fit_fwhm(data = subtracted, xypos = centroid).item()
         #Function expects data to be bkgd subtracted
         #Nan/inf values automatically masked
         if plot == True:
@@ -127,8 +131,10 @@ class AperturePhotometry:
         return target_flux, target_aperture.area, mean_sky_bckgnd_per_pixel, sky_annulus.area
     
     def curve_of_growth(self, data, ceph_name, date, savefig = False):
-        """To calculate and plot the sky-subtracted flux obtained in a series
-        of increasingly large apertures."""
+        """
+        To calculate and plot the sky-subtracted flux obtained in a series
+        of increasingly large apertures.
+        """
 
         aperture_radius = np.zeros(16)
         sky_sub_ap_flux = np.zeros(16)
