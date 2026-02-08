@@ -285,9 +285,11 @@ class StandardStarPhotometryPipeline:
     
     def extract_standard_id(self, filename):
         """Extract Standard Star ID from filename (e.g., 'standard_03' → '03')"""
-        match = self.standard_pattern.search(filename)
-        if match:
-            return f"{int(match.group(1)):02d}"  # Always 2 digits: 01, 02, etc.
+
+        #match based on standard stars in the catalog (e.g., "SA_114_176" → "114176")
+        for standard_id in self.standard_catalog.keys():
+            if standard_id in filename:
+                return standard_id
         return None
     
     def get_date_directories(self):
@@ -528,8 +530,8 @@ def build_standard_catalog():
 if __name__ == "__main__":
     
     # Configuration
-    DATA_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Standard_test"
-    OUTPUT_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Standard_Photometry"
+    DATA_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_standard_stars_V"
+    OUTPUT_DIR = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid_standard_stars_V_Photometry"
     
     # Build catalog
     print("=" * 60)
