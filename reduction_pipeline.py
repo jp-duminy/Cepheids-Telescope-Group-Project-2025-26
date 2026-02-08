@@ -5,6 +5,8 @@ from collections import defaultdict
 import re
 from astropy.visualization import ZScaleInterval
 import matplotlib.pyplot as plt
+from astropy.stats import sigma_clipped_stats
+import warnings
     
 
 class Calibration_Set:
@@ -48,6 +50,21 @@ class Calibration_Set:
         bias_stack = np.stack(bias_frames, axis=0)
         self.master_bias = np.median(bias_stack, axis=0)
         print(f"Master bias shape: {self.master_bias.shape}")
+
+        print(f"\nMaster bias statistics:")
+        print(f"  Min: {np.min(self.master_bias):.1f} ADU")
+        print(f"  Max: {np.max(self.master_bias):.1f} ADU")
+        print(f"  Mean: {np.mean(self.master_bias):.1f} ADU")
+        print(f"  Median: {np.median(self.master_bias):.1f} ADU")
+        print(f"  Std: {np.std(self.master_bias):.1f} ADU")
+        
+        # Check for structure (bias should be fairly uniform)
+
+        _, median, std_clipped = sigma_clipped_stats(self.master_bias, sigma=3.0)
+        print(f"  Sigma-clipped std: {std_clipped:.1f} ADU")
+        
+        if std_clipped > 10:
+            warnings.warn("Master bias has significant structure!")
 
         return self.master_bias
 
