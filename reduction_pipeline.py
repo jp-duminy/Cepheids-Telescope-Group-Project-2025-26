@@ -210,7 +210,7 @@ class Cepheid_Data_Organiser:
         Create path to Cepheid directory and find patterns in files of "Cepheid_(#)".
         """
         self.cepheids_directory = Path(cepheids_directory)
-        self.cepheid_pattern = re.compile(r'Cepheids?_(\d+).*?_Filter_V_', re.IGNORECASE)
+        self.cepheid_pattern = re.compile(r'Standard\d+_\d+_([^_]+(?:_\d+)?)', re.IGNORECASE)
     
     def list_observation_nights(self):
         """
@@ -224,15 +224,15 @@ class Cepheid_Data_Organiser:
         """
         Organise each night's files based on Cepheid number
         """
-        cepheid_files = defaultdict(list)
+        standard_files = defaultdict(list)
         
         for file in sorted(Path(night_directory).glob("*.fits")):
             pattern_presence = self.cepheid_pattern.search(file.name)
             if pattern_presence:
-                ceph_num = int(pattern_presence.group(1))
-                cepheid_files[ceph_num].append(file)
+                standard_name = pattern_presence.group(1)
+                standard_files[standard_name].append(file)
         
-        return dict(cepheid_files)
+        return dict(standard_files)
     
     def organise_all_nights(self):
         """
@@ -457,8 +457,8 @@ def run_pipeline(
         # process each cepheid individually
         for ceph_num, all_files in sorted(ceph_data.items()):
             # only select requested cepheids
-            if cepheid_nums is not None and ceph_num not in cepheid_nums:
-                continue
+            #if cepheid_nums is not None and ceph_num not in cepheid_nums:
+                #continue
             
             print(f"\nCepheid {ceph_num}:")
             print(f"Total files found: {len(all_files)}")
@@ -495,7 +495,7 @@ def run_pipeline(
             )
             
             # save file
-            save_path = night_output / f"cepheid_{ceph_num:02d}_stacked.fits"
+            save_path = night_output / f"standard_{ceph_num}_stacked.fits"
             hdu = fits.PrimaryHDU(stacked, header=combined_header)
             hdu.writeto(save_path, overwrite=True)
             
