@@ -270,22 +270,13 @@ class Airmass:
 
     """Extract airmass data from fits header"""
 
-    def __init__(self, fits_path, Vmag, m_inst, m_err):
+    #NEEDS TO BE EDITED. AirmassInfo returns a single value of airmass whereas it needs to be an array of airmass values for each standard star.
+    def __init__(self, airmass, Vmag, m_inst, m_err):
         """Initialise filename, airmass, and other values"""
-        self.filename = fits_path
-        self.block = AirmassInfo().process_fits(fits_path)
-        '''block = (
-                f"Object;        {obj}\n"
-                f"RA (h:m:s);    {ra_str}\n"
-                f"DEC (d:m:s);   {dec_str}\n"
-                f"Date Obs;      {t.iso.split('.')[0]}\n"
-                f"Altitude (°);  {alt:.2f}\n"
-                f"Airmass;       {airmass:.2f}\n"
-            )'''
-        self.airmass = float(self.block.split("Airmass;")[1].strip())
-        self.Vmag = Vmag
-        self.m_inst = m_inst
-        self.m_err = m_err
+        self.airmass = np.asarray(airmass)
+        self.Vmag = np.asarray(Vmag)
+        self.m_inst = np.asarray(m_inst)
+        self.m_err = np.asarray(m_err)
 
         
     def fit_extinction_weighted(self):
@@ -326,13 +317,9 @@ class Airmass:
             Uncertainty in Z
         """
 
-        # Convert to numpy arrays
-        airmass = np.asarray(self.airmass)
-        Vmag = np.asarray(Vmag) #Magnitudes for standard stars
-
         # Dependent variable
         y = self.Vmag - self.m_inst
-        X = airmass
+        X = self.airmass
 
         # Weights
         w = 1 / self.m_err**2
