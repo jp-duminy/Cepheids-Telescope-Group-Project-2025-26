@@ -179,8 +179,19 @@ class PhotometryDataManager:
         return f"{int(match.group(1)):02d}" if match else None
     
     def extract_standard_id(self, filename):
-        match = re.search(r'cepheid[_-]?(\d+)', filename.lower())
-        return f"{int(match.group(1)):02d}" if match else None
+        """
+        Extracts the ID of a standard star (more tricky as these are separated by name)
+        """
+        filename_lower = filename.lower()
+        
+        # Try to match each catalog key
+        for std_id in standard_catalogue.keys():
+            # Make comparison case-insensitive and flexible with underscores
+            std_id_pattern = std_id.lower().replace("_", "[_-]?")
+            if re.search(std_id_pattern, filename_lower):
+                return std_id
+        
+        return None
     
     def save_results(self, df, filename):
         path = self.output_dir / filename
@@ -219,6 +230,15 @@ class SinglePhotometry:
         self.exp_time = exp_time
         self.stack_size = stack_size
 
+    def get_airmass(self):
+        """
+        Use .fits file headers to compute the airmass.
+        """
+        airmass_info = AirmassInfo(str(self.fits_path))
+        airmass = airmass_info.process_fits(str(self.fits_path))
+        
+        return airmass
+    
     def curve_of_growth(self, data, centroid, fwhm, inner=1.5, outer=2.0, plot=False):
         """
         Determine the optimal aperture size from a curve-of-growth plot.
@@ -242,7 +262,7 @@ class SinglePhotometry:
         max_flux = np.max(fluxes)
         target_flux = 0.90 * max_flux
 
-        idx = np.argmin(fluxes >= target_flux)
+        idx = np.argmax(fluxes >= target_flux)
         optimal_radius = ap_radii[idx]
 
         if plot:
@@ -280,9 +300,143 @@ class SinglePhotometry:
         
         return instrumental_mag, instrumental_mag_error
 
-    def corrected_photometry(self):
+    def dust_correction(self):
         """
-        Correct for airmass and dust extinction.
+        Uses The Don's dust class to compute Av.
         """
-        instrumental_mag, instrumental_mag_error = self.raw_photometry(width=100)
+        dust = DustExtinction(filter="V", colour_excess=float(self.ebv))
+        A_V = dust.compute_extinction_mag()
+
+        return A_V
+
+    def standard_magnitudes(self, calibrations):
+        """
+        Compute a standard magnitude, appropriately corrected.
+        """
+        m_inst, m_inst_err = self.raw_photometry(width=100)
+        airmass = self.get_airmass()
+        A_V = self.dust_correction()
+
+        k = calibrations["k"]
+        Z1 = calibrations["Z1"]
+        k_err = calibrations["k_err"]
+        Z1_err = calibrations["Z1_err"]
+
+        m_true = (m_inst - A_V) + Z1 + (k * airmass)
+        m_true_err = np.sqrt(m_inst_err**2 + (airmass * k_err)**2 + Z1_err**2)
+
+        return m_true, m_true_err
+    
+class Corrections:
+
+    def __init__(self, data_manager, standard_catalogue, cepheid_catalogue):
+        self.data_manager = data_manager
+        self.standard_catalogue = standard_catalogue
+        self.cepheid_catalogue = cepheid_catalogue
+        
+        self.standards_results = []
+        self.calibration = None
+
+    def process_standards(self):
+        """
+        Compute instrumental magnitude and its error for standard stars on the night.
+        """
+        standard_files = self.data_manager.find_standard_files()
+        print(f"\nProcessing {len(standard_files)} standard stars...")
+
+        for std_file in standard_files:
+            # identify the standard and get its data
+            std_id = self.data_manager.extract_standard_id(std_file.name)
+            std_data = self.standard_catalogue[std_id]
+            
+            # initialise photometry object
+            phot = SinglePhotometry(
+            fits_path=std_file,
+            ra=std_data["ra"],
+            dec=std_data["dec"],
+            name=std_id,
+            ebv=0.0
+            )
+
+            m_inst, m_err = phot.raw_photometry(width=100)
+            airmass = phot.get_airmass()
+
+            self.standards_results.append({
+            "name": std_id,
+            "V_true": float(std_data["mag"]),
+            "m_inst": m_inst,
+            "m_inst_err": m_err,
+            "airmass": airmass
+            })
+
+        self.standards_df = pd.DataFrame(self.standards_results)
+    
+    def fit_extinction(self):
+        """
+        Use Harsha's airmass class to fit extinction.
+        """
+        airmass_fitter = Airmass(
+            airmass = self.standards_df['airmass'].values,
+            Vmag=self.standards_df["V_true"].values,
+            m_inst=self.standards_df["m_inst"].values,
+            m_err=self.standards_df["m_inst_err"].values
+        )
+
+        k, Z1, k_err, Z1_err = airmass_fitter.fit_extinction_weighted()
+        airmass_fitter.plot_atmospheric_extinction()
+        airmass_fitter.plot_parameter_space()
+
+        calibration = {
+        "k": k,
+        "Z1": Z1,
+        "k_err": k_err,
+        "Z1_err": Z1_err
+        }
+
+        return calibration
+    
+def main(input_dir=input_dir, output_dir=output_dir):
+    # initialise data manager
+    data_manager = PhotometryDataManager(input_dir, output_dir)
+    
+    # process standard stars to extract calibration parameters
+    corrections = Corrections(data_manager, standard_catalogue, cepheid_catalogue)
+    corrections.process_standards()
+    calibration = corrections.fit_extinction()
+    
+    # loop over cepheids for a given night
+    cepheid_files = data_manager.find_cepheid_files()
+    results = []
+    
+    for cep_file in cepheid_files:
+        cep_id = data_manager.extract_cepheid_id(cep_file.name)
+        cep_data = cepheid_catalogue[cep_id]
+        
+        phot = SinglePhotometry(
+            fits_path=cep_file,
+            ra=cep_data["ra"],
+            dec=cep_data["dec"],
+            name=cep_data["name"],
+            ebv=cep_data["e(b-v)"]
+        ) # photometry object
+        
+        m_true, m_err = phot.standard_magnitudes(calibration)
+        results.append({
+            "ID": cep_id,
+            "Name": cep_data["name"],
+            "m_true": m_true,
+            "m_err": m_err
+        }) # can extend this to include ISOT & absolute magnitude
+    
+    # save results to a csv
+    df = pd.DataFrame(results)
+    filename = f"photometry_{data_manager.date}.csv"
+    saved_path = data_manager.save_results(df, filename)
+    
+    print(f"Photometry complete. Results saved to: {saved_path}")
+
+if __name__ == "__main__":
+    main()
+
+
 
