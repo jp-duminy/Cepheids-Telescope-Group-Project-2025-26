@@ -6,6 +6,8 @@ import astropy.units as u
 import re
 from matplotlib import pyplot as plt
 from astropy.io import fits
+from astropy.wcs import WCS
+import warnings
 
 from Cepheid_apertures import AperturePhotometry
 from Cepheid_apertures import Airmass
@@ -144,7 +146,7 @@ andromeda_catalogue = {
 }
 
 # directories
-input_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/2025-09-22" # change to the name of the night
+input_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/2025-10-06" # change to the name of the night
 output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Photometry" # where we store the results
 
 class PhotometryDataManager:
@@ -206,12 +208,33 @@ class SinglePhotometry:
         self.fits_path = Path(fits_path)
         self.name = name
         self.ebv = ebv
-        self.ra = ra
-        self.dec = dec
+
+        coord = SkyCoord(ra, dec, unit=(u.hourangle, u.deg), frame='icrs')
+        self.ra = coord.ra.deg  # decimal degrees
+        self.dec = coord.dec.deg  # decimal degrees
 
         self.ap = AperturePhotometry(str(fits_path))
 
         self.ccd_params()
+
+    def diagnose_wcs(self):
+        """Check if WCS is reasonable."""
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            wcs = WCS(self.ap.header)
+        
+        print(f"\nWCS Diagnosis for {self.name}:")
+        print(f"  CRVAL1 (RA): {self.ap.header.get('CRVAL1', 'MISSING')}")
+        print(f"  CRVAL2 (Dec): {self.ap.header.get('CRVAL2', 'MISSING')}")
+        print(f"  CD1_1: {self.ap.header.get('CD1_1', 'MISSING')}")
+        print(f"  CD2_2: {self.ap.header.get('CD2_2', 'MISSING')}")
+        
+        # Try converting back
+        x_test, y_test = self.ap.get_pixel_coords(self.ra, self.dec)
+        ra_check, dec_check = self.ap.wcs.pixel_to_world_values(x_test, y_test)
+        
+        print(f"  Coord roundtrip error: ΔRA={abs(self.ra - ra_check):.4f}°, ΔDec={abs(self.dec - dec_check):.4f}°")
 
     def ccd_params(self):
         """
@@ -275,15 +298,16 @@ class SinglePhotometry:
         return optimal_radius
 
 
-    def raw_photometry(self, width=100):
+    def raw_photometry(self, width=200):
         """
         Raw photometry (computes instrumental magnitude and associated error.)
         """
         # locate approximate pixel coordinates of star
         x_guess, y_guess = self.ap.get_pixel_coords(self.ra, self.dec)
-
+        print(f"X-guess: {x_guess}, Y-guess: {y_guess}.")
+        self.diagnose_wcs()
         # cut out a 100x100 rectangle containing the star
-        masked_data = self.ap.mask_data_and_plot(x_guess, y_guess, width, plot=True)
+        masked_data = self.ap.mask_data_and_plot(x_guess, y_guess, width=width, plot=True)
 
         centroid, fwhm = self.ap.get_centroid_and_fwhm(masked_data, plot=True)
 
@@ -313,7 +337,7 @@ class SinglePhotometry:
         """
         Compute a standard magnitude, appropriately corrected.
         """
-        m_inst, m_inst_err = self.raw_photometry(width=100)
+        m_inst, m_inst_err = self.raw_photometry(width=200)
         airmass = self.get_airmass()
         A_V = self.dust_correction()
 
@@ -348,6 +372,8 @@ class Corrections:
             # identify the standard and get its data
             std_id = self.data_manager.extract_standard_id(std_file.name)
             std_data = self.standard_catalogue[std_id]
+
+            print(f"Analysing star {std_id}...")
             
             # initialise photometry object
             phot = SinglePhotometry(
@@ -358,7 +384,7 @@ class Corrections:
             ebv=0.0
             )
 
-            m_inst, m_err = phot.raw_photometry(width=100)
+            m_inst, m_err = phot.raw_photometry(width=200)
             airmass = phot.get_airmass()
 
             self.standards_results.append({
