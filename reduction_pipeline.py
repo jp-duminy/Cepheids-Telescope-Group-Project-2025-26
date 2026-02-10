@@ -78,6 +78,15 @@ class Calibration_Set:
         
         print(f"Master flat shape: {self.master_flat.shape}")
 
+        print(f"Master flat statistics:")
+        print(f"  Min: {np.min(self.master_flat):.4f}")
+        print(f"  Max: {np.max(self.master_flat):.4f}")
+        print(f"  Mean: {np.mean(self.master_flat):.4f}")  # Should be ~1.0
+        print(f"  Median: {np.median(self.master_flat):.4f}")  # Should be ~1.0
+    
+        if np.mean(self.master_flat) < 0.9 or np.mean(self.master_flat) > 1.1:
+            warnings.warn("Master flat normalization is wrong!")
+
         return self.master_flat
 
     def prepare(self):
