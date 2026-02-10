@@ -146,7 +146,7 @@ andromeda_catalogue = {
 }
 
 # directories
-input_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/2025-10-06" # change to the name of the night
+input_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/2025-10-14" # change to the name of the night
 output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Photometry" # where we store the results
 
 class PhotometryDataManager:
@@ -309,7 +309,7 @@ class SinglePhotometry:
         # cut out a 100x100 rectangle containing the star
         masked_data = self.ap.mask_data_and_plot(x_guess, y_guess, width=width, plot=True)
 
-        centroid, fwhm = self.ap.get_centroid_and_fwhm(masked_data, plot=True)
+        centroid, fwhm = self.ap.get_centroid_and_fwhm(masked_data, self.name, plot=True)
 
         ap_rad = self.curve_of_growth(masked_data, centroid, fwhm, inner=1.5, outer=2.0, plot=True)
 

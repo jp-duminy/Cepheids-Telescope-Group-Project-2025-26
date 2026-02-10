@@ -6,6 +6,7 @@ import photutils.psf as psf
 import astropy.io.fits as fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import csv
 import statsmodels.api as sm
 from matplotlib.lines import Line2D
@@ -63,16 +64,14 @@ class AperturePhotometry:
         
         return masked_data
 
-    def get_centroid_and_fwhm(self, data, plot = False):
+    def get_centroid_and_fwhm(self, data, name, plot = False):
         """
         Get Gaussian centroid of target source around which to
         centre the aperture, and the FWHM of the target source centred around
         the centroid. data should be masked_data
         """
-        # sigma-clipped background subtraction
-        _, median, _ = sigma_clipped_stats(data, sigma=3.0, maxiters=5)
-        subtracted = np.maximum(data - median, 0)
 
+        subtracted = data - np.mean(data) # this does not need to be precise
         centroid = centroid_2dg(subtracted) #Should be masked
         fwhm = psf.fit_fwhm(data = subtracted, xypos = centroid).item()
         #Function expects data to be bkgd subtracted
@@ -80,6 +79,7 @@ class AperturePhotometry:
         if plot == True:
             plt.imshow(data, norm = LogNorm())
             plt.plot(centroid[0], centroid[1], marker = "+", color = "r")
+            plt.title(f"Centroid for {name}")
             plt.show()
 
         return centroid, fwhm
