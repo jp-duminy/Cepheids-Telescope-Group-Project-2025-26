@@ -63,7 +63,7 @@ cepheid_catalogue_2025_09_22 = {
         "name": "CP Cep",
         "x-coord": "2062",
         "y-coord": "1970"
-    },
+    }, #Cepheid 6 missing due to bad data
     "07": {
         "ra":  "22 48 38.00",
         "dec": "+56 19 17.5",
@@ -71,7 +71,7 @@ cepheid_catalogue_2025_09_22 = {
         "name": "V Lac",
         "x-coord": "2073.2669",
         "y-coord": "1979.7097"
-    },#Cepheid 6 missing due to bad data
+    },
     "08": {
         "ra":  "23 07 10.08",
         "dec": "+58 33 15.1",
@@ -179,7 +179,7 @@ cepheid_catalogue_2025_10_01 = {
         "name": "Z Lac",
         "x-coord": "2039",
         "y-coord": "1977"
-    },
+    }, #line going through cepheid 6 but hopefully not an issue
     "07": {
         "ra":  "22 48 38.00",
         "dec": "+56 19 17.5",
@@ -187,7 +187,7 @@ cepheid_catalogue_2025_10_01 = {
         "name": "V Lac",
         "x-coord": "2031.5905",
         "y-coord": "1975.4992"
-    }, #line going through cepheid 6 but hopefully not an issue
+    }, 
     "08": {
         "ra":  "23 07 10.08",
         "dec": "+58 33 15.1",
@@ -401,7 +401,7 @@ cepheid_catalogue_2025_10_07 = {
         "name": "Z Lac",
         "x-coord": "2057",
         "y-coord": "1977"
-    },
+    }, #line going through cepheid 6 but hopefully not an issue
     "07": {
         "ra":  "22 48 38.00",
         "dec": "+56 19 17.5",
@@ -409,7 +409,7 @@ cepheid_catalogue_2025_10_07 = {
         "name": "V Lac",
         "x-coord": "2019.177",
         "y-coord": "1960.4489"
-    }, #line going through cepheid 6 but hopefully not an issue
+    }, 
     "08": {
         "ra":  "23 07 10.08",
         "dec": "+58 33 15.1",
