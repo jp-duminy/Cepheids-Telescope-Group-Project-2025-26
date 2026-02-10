@@ -731,3 +731,25 @@ cepheid_catalogue_2025_10_23 = {
     }
 }
 
+#Catalogue for Andromeda PIRATE targets
+andromeda_catalogue = {
+    "CV1": {
+
+        "ra": "00 41 27.30",
+        "dec": "+41 10 10.4",
+        "e(b-v)" : "0.06",
+        "name" : "Andromeda",
+        "x-coord": "2096",
+        "y-coord": "1996"
+    },
+    "pseudo-std": {
+        #Very little information for this star 
+        "ra": None,
+        "dec": None,
+        "e(b-v)": None,
+        "name": "pseudo-std",
+        "x-coord": "1489",
+        "y-coord": "1517"
+        }
+}
+
