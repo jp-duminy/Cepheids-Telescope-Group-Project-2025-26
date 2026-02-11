@@ -1,3 +1,9 @@
+"""
+Working photometry pipeline for TGP Cepheids 25-26.
+author: @jp
+"""
+
+# default packages
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -9,145 +15,38 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import warnings
 
+# our classes
 from Cepheid_apertures import AperturePhotometry
 from Cepheid_apertures import Airmass
 from Cepheid_apertures import DustExtinction
 from AirmassInfo import AirmassInfo
+from catalogues import ALL_CATALOGUES, get_catalogues_for_night, get_pixel_guess
 
+# updated DAOStarFinder
+from photutils.detection import DAOStarFinder
+from astropy.stats import sigma_clipped_stats
+from photutils.aperture import CircularAperture as circ_ap
+from matplotlib.colors import LogNorm
+
+# stylistic plots
 import scienceplots
 plt.style.use('science')
 plt.rcParams['text.usetex'] = False
 
-# someone please double check these
-
-# cepheids and their RA/Dec coords (I did this by hand and double checked)
-cepheid_catalogue = {
-    "01": {
-        "ra":  "20 12 22.83",
-        "dec": "+32 52 17.8",
-        "e(b-v)": "0.68",
-        "name": "MW Cyg"
-    },
-    "02": {
-        "ra":  "20 54 57.53",
-        "dec": "+47 32 01.7",
-        "e(b-v)": "0.80",
-        "name": "V520 Cyg"
-    },
-    "03": {
-        "ra":  "20 57 20.83",
-        "dec": "+40 10 39.1",
-        "e(b-v)": "0.79",
-        "name": "VX Cyg"
-    },
-    "04": {
-        "ra":  "21 04 16.63",
-        "dec": "+39 58 20.1",
-        "e(b-v)": "0.65",
-        "name": "VY Cyg"
-    },
-    "05": {
-        "ra":  "21 57 52.69",
-        "dec": "+56 09 50.0",
-        "e(b-v)": "0.68",
-        "name": "CP Cep"
-    },
-    "06": {
-        "ra":  "22 40 52.15",
-        "dec": "+56 49 46.1",
-        "e(b-v)": "0.40",
-        "name": "Z Lac"
-    },
-    "07": {
-        "ra":  "22 48 38.00",
-        "dec": "+56 19 17.5",
-        "e(b-v)": "0.36",
-        "name": "V Lac"
-    },
-    "08": {
-        "ra":  "23 07 10.08",
-        "dec": "+58 33 15.1",
-        "e(b-v)": "0.49",
-        "name": "SW Cas"
-    },
-    "09": {
-        "ra":  "00 26 19.45",
-        "dec": "+51 16 49.3",
-        "e(b-v)": "0.12",
-        "name": "TU Cas"
-    },
-    "10": {
-        "ra":  "00 29 58.59",
-        "dec": "+60 12 43.1",
-        "e(b-v)": "0.53",
-        "name": "DL Cas"
-    },
-    "11": {
-        "ra":  "01 32 43.22",
-        "dec": "+63 35 37.7",
-        "e(b-v)": "0.70",
-        "name": "V636 Cas"
-    },
-}
-
-# standard star catalogue, I also did this by hand
-standard_catalogue = {
-    "114176": {
-        "ra":  "+22 43 11.0",
-        "dec": "+00 21 16.0",
-        "mag": "9.239",
-        "e(b-v)": "0.0013"
-    },
-    "SA111775": {
-        "ra":  "+19 37 17.0",
-        "dec": "+00 11 14.0",
-        "mag": "10.74",
-        "e(b-v)": "	0.0009"
-    },
-    "F_108": {
-        "ra":  "+23 16 12.0",
-        "dec": "-01 50 35.0",
-        "mag": "12.96",
-        "e(b-v)": "0.0016"
-    },
-    "SA112_595": {
-        "ra":  "+20 41 19.0",
-        "dec": "+00 16 11.0",
-        "mag": "11.35",
-        "e(b-v)": "0.0016"
-    },
-    "GD_246": {
-        "ra":  "+23 12 21.6",
-        "dec": "+10 47 04.0",
-        "mag": "13.09",
-        "e(b-v)": "0.0015"
-    },
-    "G93_48": {
-        "ra":  "+21 52 25.4",
-        "dec": "+02 23 23.0",
-        "mag": "12.74",
-        "e(b-v)": "0.0012"
-    },
-    "G156_31": {
-        "ra":  "+22 38 28.0",
-        "dec": "-15 19 17.0",
-        "mag": "12.36",
-        "e(b-v)": "0.0049"
-    }
-}
-
-andromeda_catalogue = {
-    "CV1": {
-        "ra": "+00 41 27.30",
-        "dec": "+41 10 10.4",
-        "e(b-v)": "0.06",
-        "name": "Andromeda CV1"
-    }
-}
-
 # directories
 input_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/2025-10-06" # change to the name of the night
 output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Photometry" # where we store the results
+base_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids"
+
+# because standards were somewhat inconveniently named
+ALL_STANDARD_IDS = {"114176", "SA111775", "F_108", "SA112_595", "GD_246", "G93_48", "G156_31"}
+
+# quick helper function
+def input_dir_for(night):
+    """
+    Finds the directory for a night from the base directory (for looping over standards).
+    """
+    return f"{base_dir}/{night}"
 
 class PhotometryDataManager:
 
@@ -155,6 +54,7 @@ class PhotometryDataManager:
         """
         Store parameters for I/O.
         """
+        self.base_dir = Path(base_dir)
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -182,17 +82,13 @@ class PhotometryDataManager:
     
     def extract_standard_id(self, filename):
         """
-        Extracts the ID of a standard star (more tricky as these are separated by name)
+        Extracts the name of the standard file so they may be distinguished (slightly harder because standards are grouped by name).
         """
         filename_lower = filename.lower()
-        
-        # Try to match each catalog key
-        for std_id in standard_catalogue.keys():
-            # Make comparison case-insensitive and flexible with underscores
+        for std_id in ALL_STANDARD_IDS:
             std_id_pattern = std_id.lower().replace("_", "[_-]?")
             if re.search(std_id_pattern, filename_lower):
                 return std_id
-        
         return None
     
     def save_results(self, df, filename):
@@ -204,22 +100,33 @@ class SinglePhotometry:
     """
     Performs photometry on one .fits file.
     """
-    def __init__(self, fits_path, ra, dec, name, ebv):
+    def __init__(self, fits_path, x_rough, y_rough, name, ebv):
+        # data management
         self.fits_path = Path(fits_path)
         self.name = name
         self.ebv = ebv
-        self.date = Path(input_dir).name
+        self.date = self.fits_path.parent.name
 
-        coord = SkyCoord(ra, dec, unit=(u.hourangle, u.deg), frame='icrs')
-        self.ra = coord.ra.deg  # decimal degrees
-        self.dec = coord.dec.deg  # decimal degrees
-
+        # coordinates & apertures
+        self.x_rough = x_rough
+        self.y_rough = y_rough
         self.ap = AperturePhotometry(str(fits_path))
 
+        # ccd parameters
         self.ccd_params()
 
+    def isot_time(self):
+        """
+        Extract the ISOT time from the .fits header (needed for period fitting).
+        """
+        return self.ap.header.get("DATE-OBS")
+
     def diagnose_wcs(self):
-        """Check if WCS is reasonable."""
+        """
+        Check if WCS is reasonable.
+        
+        NOW DEFUNCT!!! (Using DAOStarFinder)
+        """
         
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -244,10 +151,10 @@ class SinglePhotometry:
         with fits.open(self.fits_path) as hdul:
             hdr = hdul[0].header  # assuming primary HDU stores relevant keywords
     
-            gain = hdr.get('MEANGAIN', None)           # e-/ADU
+            gain = hdr.get('MEANGAIN', None) # e-/ADU
             read_noise = hdr.get('TOTRN', None)  # e-
-            exp_time = hdr.get('TOTEXP', None)    # seconds
-            stack_size = hdr.get('NSTACK', 1)    # default to 1 if single image
+            exp_time = hdr.get('TOTEXP', None) # seconds
+            stack_size = hdr.get('NSTACK', 1) # default to 1 if single image
             
         self.gain = gain
         self.read_noise = read_noise
@@ -260,14 +167,55 @@ class SinglePhotometry:
         """
         airmass_info = AirmassInfo(str(self.fits_path))
         airmass = airmass_info.process_fits(str(self.fits_path))
+        airmass = airmass.value # extract value from astropy object
         
         return airmass
-    
+
+    def locate_star(self, x_guess, y_guess, fwhm=4.0, sigma=3.0, plot=True):
+        """
+        Uses DAOStarFinder with an initial guess to locate the target star in the image.
+        Most stars seem to have fwhm ~ 4.0 so we'll run with that.
+
+        Also creates a plot of all stars in the image and highlights the target star for completeness.
+        """
+        raw_data = self.ap.data * self.exp_time # DAOStarFinder prefers the raw data rather than normalised counts.
+
+        mean, median, std = sigma_clipped_stats(raw_data, sigma=sigma)
+        daofind = DAOStarFinder(fwhm=fwhm, threshold=sigma * std)
+        sources = daofind(raw_data - median)
+
+        # find the distances from stars in the image to where the initial guess was
+        distances = np.sqrt((sources['xcentroid'] - x_guess)**2 + 
+                        (sources['ycentroid'] - y_guess)**2)
+        min_distance_index = np.argmin(distances) # locate the star closest to the star in the image
+
+        if distances[min_distance_index] > 30:  # sanity check - nearest star shouldn't be far
+            print(f"Nearest source is {distances[min_distance_index]:.1f}px away, using raw guess instead")
+            return x_guess, y_guess
+        
+        x_coord, y_coord = float(sources['xcentroid'][min_distance_index]), float(sources['ycentroid'][min_distance_index])
+
+        if plot:
+            positions = np.transpose((sources['xcentroid'], sources['ycentroid']))
+            all_aps = circ_ap(positions, r=6)
+            target_ap = circ_ap((x_coord, y_coord), r=6)
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.imshow(self.ap.data, origin='lower',
+                    norm=LogNorm(vmin=np.median(self.ap.data), vmax=np.percentile(self.ap.data, 99)),
+                    cmap='gray')
+            all_aps.plot(ax=ax, color='blue', lw=0.8, alpha=0.4)
+            target_ap.plot(ax=ax, color='red', lw=1.5, label=f"{self.name}")
+            ax.set_title(f"{self.name} Full Image: ({len(sources)} Sources Detected)")
+            plt.show()
+
+        return x_coord, y_coord
+
     def curve_of_growth(self, data, centroid, fwhm, inner=1.5, outer=2.0, plot=False):
         """
         Determine the optimal aperture size from a curve-of-growth plot.
         """
-        ap_radii = np.arange(0.1, 6.1, 0.05) * fwhm
+        ap_radii = np.arange(0.1, 5.1, 0.05) * fwhm # do a broad range of apertures
         fluxes = []
         bckgnds = []
 
@@ -284,8 +232,7 @@ class SinglePhotometry:
 
         fluxes = np.array(fluxes)
 
-
-        valid_mask = ~np.isnan(fluxes).flatten()
+        valid_mask = ~np.isnan(fluxes).flatten() # the ~ sign flips boolean values
 
         fluxes = fluxes[valid_mask]
         ap_radii = ap_radii[valid_mask]
@@ -295,7 +242,7 @@ class SinglePhotometry:
 
         print(f"Max flux: {max_flux}, target flux: {target_flux}")
 
-        idx = np.argmax(fluxes >= target_flux)
+        idx = np.argmax(fluxes >= target_flux) # locate the first aperture that contains 90% of maximum flux
         optimal_radius = ap_radii[idx]
 
         if plot:
@@ -307,38 +254,34 @@ class SinglePhotometry:
 
         return optimal_radius
 
-    def raw_photometry(self, width=200):
+    def raw_photometry(self, width):
         """
         Raw photometry (computes instrumental magnitude and associated error.)
         """
         # locate approximate pixel coordinates of star
-        x_guess, y_guess = self.ap.get_pixel_coords(self.ra, self.dec)
+        x_guess, y_guess = self.locate_star(self.x_rough, self.y_rough)
         print(f"X-guess: {x_guess}, Y-guess: {y_guess}.")
-        self.diagnose_wcs()
-        # cut out a 200x200 rectangle containing the star
+        # cut out a 100x100 rectangle containing the star
         masked_data, x_offset, y_offset = self.ap.mask_data_and_plot(x_guess, y_guess, width=width, plot=True)
 
-        centroid_local, fwhm = self.ap.get_centroid_and_fwhm(masked_data, self.name, plot=True)
-        centroid_global = (centroid_local[0] + x_offset, centroid_local[1] + y_offset)
+        # use centroiding to find the exact sub-pixel centre of the star
+        centroid_local, fwhm = self.ap.get_centroid_and_fwhm(masked_data, self.name, plot=True) # centroid for cutout
+        centroid_global = (centroid_local[0] + x_offset, centroid_local[1] + y_offset) # centroid for full image
 
-        #PSF diagnostic
-        print(f"The fwhm of {self.name} is {fwhm}")
-
+        # compute optimal aperture size from curve-of-growth analysis
         ap_rad = self.curve_of_growth(masked_data, centroid_local, fwhm, inner=1.5, outer=2.0, plot=True)
 
-        print(f"Aperture radius is {ap_rad} pix")
-
+        # extract flux via full aperture photometry
         flux, ap_area, sky_bckgnd, annulus_area = self.ap.aperture_photometry(
             masked_data, centroid_local, ap_rad, ceph_name=self.name, date=self.date,
             inner=1.5, outer=2.0, plot=True, savefig=False
         )
 
+        # compute instrumental magnitudes and errors
         instrumental_mag = self.ap.instrumental_magnitude(flux)
         instrumental_mag_error = self.ap.get_inst_mag_error(flux, ap_area, sky_bckgnd, annulus_area,
                                                             self.gain, self.exp_time, self.read_noise, self.stack_size)
         
-        print(f"Instrumental magnitude for {self.name}: {instrumental_mag} +/- {instrumental_mag_error}")
-
         return instrumental_mag, instrumental_mag_error
 
     def dust_correction(self):
@@ -354,7 +297,7 @@ class SinglePhotometry:
         """
         Compute a standard magnitude, appropriately corrected.
         """
-        m_inst, m_inst_err = self.raw_photometry(width=200)
+        m_inst, m_inst_err = self.raw_photometry(width=50)
         airmass = self.get_airmass()
         A_V = self.dust_correction()
 
@@ -370,51 +313,60 @@ class SinglePhotometry:
     
 class Corrections:
 
-    def __init__(self, data_manager, standard_catalogue, cepheid_catalogue):
-        self.data_manager = data_manager
-        self.standard_catalogue = standard_catalogue
-        self.cepheid_catalogue = cepheid_catalogue
-        
-        self.standards_results = []
+    def __init__(self, output_dir):
+        self.output_dir = output_dir
+        self.all_standards = []
         self.calibration = None
 
     def process_standards(self):
         """
         Compute instrumental magnitude and its error for standard stars on the night.
         """
-        standard_files = self.data_manager.find_standard_files()
-        print(f"\nProcessing {len(standard_files)} standard stars...")
+        # collect all standard star data across all nights to generate a global fit
+        for night in ALL_CATALOGUES:
+            cep_cat, std_cat = get_catalogues_for_night(night)
+            if not std_cat:
+                continue
+            data_manager = PhotometryDataManager(input_dir_for(night), output_dir) # initialise data manager
+            std_files = data_manager.find_standard_files() # locate standard files
 
-        for std_file in standard_files:
-            # identify the standard and get its data
-            std_id = self.data_manager.extract_standard_id(std_file.name)
-            std_data = self.standard_catalogue[std_id]
+            # loop over standard files
+            for std_file in std_files: 
+                std_id = data_manager.extract_standard_id(std_file.name) # extract their IDs
+                if std_id is None or std_id not in std_cat:
+                    print(f"Skipping unrecognised standard: {std_file.name}")
+                    continue
 
-            print(f"Analysing star {std_id}...")
-            
-            # initialise photometry object
-            phot = SinglePhotometry(
-            fits_path=std_file,
-            ra=std_data["ra"],
-            dec=std_data["dec"],
-            name=std_id,
-            ebv=0.0
-            )
+                std_data = std_cat[std_id] # extract data
+                x_g, y_g = get_pixel_guess(std_cat, std_id) # extract handwritten pixel guesses
 
-            m_inst, m_err = phot.raw_photometry(width=200)
-            airmass = phot.get_airmass()
-            airmass = airmass.value
+                # photometry object
+                phot = SinglePhotometry(
+                fits_path=std_file,
+                x_rough=x_g,
+                y_rough=y_g,
+                name=std_id,
+                ebv=std_data["e(b-v)"], # might want to make this zero
+                )
+                
+                m_inst, m_err = phot.raw_photometry(width=50)
+                airmass = phot.get_airmass()
 
-            self.standards_results.append({
-            "name": std_id,
-            "V_true": float(std_data["mag"]),
-            "m_inst": m_inst,
-            "m_inst_err": m_err,
-            "airmass": airmass
-            })
+                result = {
+                    "ID": std_id,
+                    "V_true": float(std_data["mag"]),
+                    "m_inst": m_inst,
+                    "m_inst_err": m_err,
+                    "airmass": airmass,
+                    "ISOT": phot.isot_time()
+                }
 
-        self.standards_df = pd.DataFrame(self.standards_results)
-    
+                self.all_standards.append(result)
+
+        # global extinction fit across all nights
+        self.standards_df = pd.DataFrame(self.all_standards)
+        print(f"\nTotal standards collected for airmass fit: {len(self.standards_df)}")
+
     def fit_extinction(self):
         """
         Use Harsha's airmass class to fit extinction.
@@ -439,48 +391,51 @@ class Corrections:
 
         return calibration
     
-def main(input_dir=input_dir, output_dir=output_dir):
-    # initialise data manager
-    data_manager = PhotometryDataManager(input_dir, output_dir)
-    
-    # process standard stars to extract calibration parameters
-    corrections = Corrections(data_manager, standard_catalogue, cepheid_catalogue)
+def main(night):
+    """
+    Runs the full photometry pipeline for a given night.
+    """
+    corrections = Corrections(output_dir)
     corrections.process_standards()
     calibration = corrections.fit_extinction()
+
+    cep_cat, _ = get_catalogues_for_night(night)
+    if not cep_cat:
+        print(f"No cepheid catalogue exists for {night}")
+        return
     
-    # loop over cepheids for a given night
-    cepheid_files = data_manager.find_cepheid_files()
+    data_manager = PhotometryDataManager(input_dir_for(night), output_dir)
     results = []
-    
-    for cep_file in cepheid_files:
+
+    for cep_file in data_manager.find_cepheid_files():
         cep_id = data_manager.extract_cepheid_id(cep_file.name)
-        cep_data = cepheid_catalogue[cep_id]
-        
+        if cep_id is None or cep_id not in cep_cat:
+            continue
+        cep_data = cep_cat[cep_id]
+        x_g, y_g = get_pixel_guess(cep_cat, cep_id)
+
         phot = SinglePhotometry(
             fits_path=cep_file,
-            ra=cep_data["ra"],
-            dec=cep_data["dec"],
-            name=cep_data["name"],
-            ebv=cep_data["e(b-v)"]
-        ) # photometry object
-        
+            x_rough=x_g, 
+            y_rough=y_g,
+            name=cep_data["name"], 
+            ebv=cep_data["e(b-v)"],
+        )
+
         m_true, m_err = phot.standard_magnitudes(calibration)
         results.append({
             "ID": cep_id,
             "Name": cep_data["name"],
+            "Night": night,
+            "ISOT": phot.isot_time(),
             "m_true": m_true,
             "m_err": m_err
-        }) # can extend this to include ISOT & absolute magnitude
-    
-    # save results to a csv
+        })
+
     df = pd.DataFrame(results)
-    filename = f"photometry_{data_manager.date}.csv"
-    saved_path = data_manager.save_results(df, filename)
-    
-    print(f"Photometry complete. Results saved to: {saved_path}")
+    filename = f"photometry_{night}.csv"
+    df.to_csv(f"{output_dir}/{filename}", index=False)
+    print(f"Results saved to {filename}")
 
 if __name__ == "__main__":
-    main()
-
-
-
+    main("2025-10-06")  # put in night syntax as needed

@@ -2,6 +2,25 @@
 from distro import name
 from matplotlib.dates import TU
 
+def get_pixel_guess(catalogue, star_id):
+    """
+    Parses pixel coordinates for one specific catalogue entry, returns (x, y) or (None, None).
+    """
+    entry = catalogue.get(star_id)
+    if entry is None:
+        return None, None
+    x = entry.get("x-coord")
+    y = entry.get("y-coord")
+    if x is None or y is None or x == "" or y == "":
+        return None, None
+    return float(x), float(y)
+
+def get_catalogues_for_night(night_name):
+    """Return (cepheid_cat, standard_cat) for a given night, or (None, None)."""
+    entry = ALL_CATALOGUES.get(night_name)
+    if entry is None:
+        return None, None
+    return entry.get("cepheids", {}), entry.get("standards", {})
 
 standard_catalogue_2025_09_22 = {
     "114176": {
@@ -958,3 +977,53 @@ andromeda_catalogue = {
         }
 }
 
+ALL_CATALOGUES = {
+    "2025-09-22": {
+        "cepheids": cepheid_catalogue_2025_09_22,
+        "standards": standard_catalogue_2025_09_22
+    },
+    "2025-09-24": {
+        "cepheids": cepheid_catalogue_2025_09_24,
+        "standards": {}
+    },
+    "2025-09-29": {
+        "cepheids": cepheid_catalogue_2025_09_29,
+        "standards": {}
+    },
+    "2025-10-01": {
+        "cepheids": cepheid_catalogue_2025_10_01,
+        "standards": {}
+    },
+    "2025-10-06": {
+        "cepheids": cepheid_catalogue_2025_10_06,
+        "standards": standard_catalogue_2025_10_06
+    },
+    "2025-10-07": {
+        "cepheids": cepheid_catalogue_2025_10_07,
+        "standards": standard_catalogue_2025_10_07
+    },
+    "2025-10-08": {
+        "cepheids": cepheid_catalogue_2025_10_08,
+        "standards": standard_catalogue_2025_10_08
+    },
+    "2025-10-09": {
+        "cepheids": cepheid_catalogue_2025_10_09,
+        "standards": {}
+    },
+    "2025-10-13": {
+        "cepheids": cepheid_catalogue_2025_10_13,
+        "standards": standard_catalogue_2025_10_13
+    },
+    "2025-10-14": {
+        "cepheids": cepheid_catalogue_2025_10_14,
+        "standards": standard_catalogue_2025_10_14
+    },
+    "2025-10-22": {
+        "cepheids": cepheid_catalogue_2025_10_22,
+        "standards": {}
+    },
+    "2025-10-23": {
+        "cepheids": cepheid_catalogue_2025_10_23,
+        "standards": standard_catalogue_2025_10_23
+    },
+}
