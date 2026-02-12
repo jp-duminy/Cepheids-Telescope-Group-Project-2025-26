@@ -1,5 +1,4 @@
 import numpy as np
-
 class AndromedaFilterCorrection:
 
     """Photometric data from Liverpool comes in the ugriz filter
@@ -37,4 +36,24 @@ class AndromedaFilterCorrection:
 
     
 
+def filter_correction(g, method = "Jordi"):
 
+    """Convert g-band magnitude to V-band magnitude using one of two methods. The first method uses
+    a formula combined from two equations in Jordi et al. (2006), returning the V-band magnitude with
+    an error. The second method uses a formula combined from equations in Jester et al. (2005), and
+    Bilir et al. *(2005), returning the V-band magnitude without an error. 
+
+    Inputs: g-band magnitude, method of choice (either "Jordi" or "Jester-Bilir")
+    Output: V-band magnitude, uncertainty (if method is "Jordi")
+    
+    For more information, visit https://www.sdss3.org/dr8/algorithms/sdssUBVRITransform.php"""
+
+    if method == "Jordi":
+        V = g - 0.3485 
+        V_err = 0.4506
+
+    elif method == "Jester-Bilir":
+        V = g + 0.3298
+        V_err = None
+
+    return V, V_err
