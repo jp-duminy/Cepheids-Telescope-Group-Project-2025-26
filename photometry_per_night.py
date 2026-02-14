@@ -273,7 +273,7 @@ class SinglePhotometry:
             plt.plot(ap_radii, fluxes, color='red', marker='o')
             plt.xlabel('Aperture Radius [pix]')
             plt.ylabel('Sky-Subtracted Flux through Aperture [ADU/s]')
-            plt.title("Normalised curve of growth")
+            plt.title(f"Curve of Growth for {self.name} on {self.date}")
             plt.show()
 
         return optimal_radius
@@ -328,7 +328,7 @@ class SinglePhotometry:
         """
         Compute a standard magnitude, appropriately corrected.
         """
-        m_inst, m_inst_err = self.raw_photometry(width=50, plot=plot)
+        m_inst, m_inst_err = self.raw_photometry(width=150, plot=plot)
         airmass = self.get_airmass()
         A_V = self.dust_correction()
 
@@ -655,7 +655,7 @@ def plot_full_sky_subtracted(fits_path, name, date):
             vmin=0, vmax=np.percentile(subtracted[subtracted > 0], 99))
     ax.set_xlabel('x [pixels]')
     ax.set_ylabel('y [pixels]')
-    ax.set_title(f"Sky-Subtracted Full Image — {name} ({date})")
+    ax.set_title(f"Sky-Subtracted Full Image for {name} ({date})")
     plt.show()
 
 def main(night, diagnostic_plot=False, refit_calibration=False):
@@ -688,8 +688,9 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
 
     cep_files = data_manager.find_cepheid_files()
 
+    # pull out background subtracted MW Cyg
     if diagnostic_plot and len(cep_files) > 0:
-        plot_full_sky_subtracted(cep_files[0], "field", night)
+        plot_full_sky_subtracted(cep_files[0], "MW Cyg", night)
 
     for cep_file in cep_files:
         cep_id = data_manager.extract_cepheid_id(cep_file.name)
