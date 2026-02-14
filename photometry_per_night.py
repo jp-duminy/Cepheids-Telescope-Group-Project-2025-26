@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 from astropy.io import fits
 from astropy.wcs import WCS
 import warnings
+import json
 
 # our classes
 from Cepheid_apertures import AperturePhotometry
@@ -44,12 +45,30 @@ base_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheid
 # because standards were somewhat inconveniently named
 ALL_STANDARD_IDS = {"114176", "SA111775", "F_108", "SA112_595", "GD_246", "G93_48", "G156_31"}
 
-# quick helper function
+#
+# helper functions
+#
+
+# find directory (TGP directories are messy)
 def input_dir_for(night):
     """
     Finds the directory for a night from the base directory (for looping over standards).
     """
     return f"{base_dir}/{night}"
+
+# store xalibrations to avoid rerunning pipeline
+CALIBRATION_FILE = f"{output_dir}/calibration.json"
+
+def save_calibration(calibration, path=CALIBRATION_FILE):
+    with open(path, "w") as f:
+        json.dump(calibration, f, indent=2)
+    print(f"Calibration saved to {path}")
+
+def load_calibration(path=CALIBRATION_FILE):
+    with open(path, "r") as f:
+        calibration = json.load(f)
+    print(f"Calibration loaded from {path}")
+    return calibration
 
 class PhotometryDataManager:
 
@@ -578,13 +597,20 @@ class DifferentialCorrections:
         m_corrected_err = np.sqrt(ceph_m_calibrated_err**2 + self.delta_err**2)
         return m_corrected, m_corrected_err
 
-def main(night, diagnostic_plot=False):
+def main(night, diagnostic_plot=False, refit_calibration=False):
     """
     Runs the full photometry pipeline for a given night.
     """
-    corrections = Corrections(output_dir)
-    corrections.process_standards(plot=diagnostic_plot)
-    calibration = corrections.fit_extinction()
+
+    # check if the calibration is saved 
+    if refit_calibration or not Path(CALIBRATION_FILE).exists():
+        # run the pipeline
+        corrections = Corrections(output_dir)
+        corrections.process_standards(plot=diagnostic_plot)
+        calibration = corrections.fit_extinction()
+        save_calibration(calibration) # save it as a .json file (readable format, see if the messy standard is included).
+    else:
+        calibration = load_calibration()
 
     # standard calibrations
     k = calibration["k"]
