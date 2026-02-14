@@ -571,6 +571,8 @@ class DifferentialCorrections:
         if plot:
             ap = AperturePhotometry(str(self.fits_path))
             fig, ax = plt.subplots(figsize=(8, 8))
+            night = Path(self.fits_path).parent.name
+            ax.set_title(f"Cepheid {self.cepheid_id} reference stars — {night}")
             ax.imshow(ap.data, origin='lower',
                     norm=LogNorm(vmin=np.median(ap.data),
                                 vmax=np.percentile(ap.data, 99)),
@@ -599,11 +601,16 @@ class DifferentialCorrections:
                 if plot:
                     x_found, y_found = phot.locate_star(x_g, y_g, plot=False)
                     ref_ap = circ_ap((x_found, y_found), r=8)
-                    ref_ap.plot(ax=ax, color='blue', lw=1.5)
+                    ref_ap.plot(ax=ax, color='blue', lw=1.5,
+                    label='Reference Stars' if ref_id == list(self.refs.keys())[0] else None)
 
             except Exception as e:
                 print(f"  Reference {ref_id} failed: {e}")
                 continue
+
+        if plot:
+            ax.legend(facecolor='white', edgecolor='black', framealpha=0.5)
+            plt.show()
 
         if len(offsets) < 3:
             raise ValueError(
