@@ -21,11 +21,6 @@ def get_catalogues_for_night(night_name):
         return None, None
     return entry.get("cepheids", {}), entry.get("standards", {})
 
-cepheid_distances = {
-    "01": {"name": "MW Cyg", "distance": ... },
-    "02": {"name": "V520 Cyg", "distance": ...},
-}
-
 standard_catalogue_2025_09_22 = {
     "114176": {
         "ra":  "+22 43 11.0",
