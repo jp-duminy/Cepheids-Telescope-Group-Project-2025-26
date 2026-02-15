@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt
 from general_functions import Astro_Functions
 import corner
 
+output_path = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/AliceInChains"
 
 class Sinusoid_Period_Finder:
     
@@ -279,7 +280,7 @@ class Sinusoid_Period_Finder:
 
         # first allow walkers to explore parameter space
         print(f"Running burn-in for {self.name}...")
-        pos = sampler.run_mcmc(pos, 100) # small burn-in of 100 steps
+        pos = sampler.run_mcmc(pos, 500) # small burn-in of 500 steps
         print(f"Burn-in complete.")
         sampler.reset() # reset sampler before main chain
 
@@ -298,10 +299,10 @@ class Sinusoid_Period_Finder:
         self.thin = thin
         self.flat_samples = self.sampler.get_chain(thin=self.thin, flat=True)
 
-        chain_filename = f"chains/{self.name}_sinusoid_chain.npy"
+        chain_filename = f"{output_path}/{self.name}_sinusoid_chain.npy"
         np.save(chain_filename, self.flat_samples)
         print(f"Chain saved to {chain_filename}")
-        
+
         # Also save metadata as plain text
         metadata = {
             'name': self.name,
@@ -314,7 +315,7 @@ class Sinusoid_Period_Finder:
             'chain_shape': self.flat_samples.shape
         }
         
-        metadata_filename = f"chains/{self.name}_sinusoid_metadata.txt"
+        metadata_filename = f"{output_path}/{self.name}_sinusoid_metadata.txt"
         with open(metadata_filename, 'w') as f:
             for key, value in metadata.items():
                 f.write(f"{key}: {value}\n")

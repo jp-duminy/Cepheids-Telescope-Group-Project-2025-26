@@ -8,13 +8,17 @@ import scienceplots
 plt.style.use('science')
 plt.rcParams['text.usetex'] = False # this avoids an annoying latex installation
 
+# test data files
+
 #filename = r"C:\Users\jp\OneDrive\Documents\1 Edinburgh University\Year 4\Telescope Group Project\Cepheids Data 3.csv"
-filename = r"C:\Users\jp\OneDrive\Documents\1 Edinburgh University\Year 4\Telescope Group Project\Sawtooth Data.csv"
-#filename = "Cepheids Data 3.csv"
+#filename = r"C:\Users\jp\OneDrive\Documents\1 Edinburgh University\Year 4\Telescope Group Project\Sawtooth Data.csv"
+
+
+filename = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/RawData/cepheid_02_V520_Cyg.csv"
+
 df = pd.read_csv(filename)
 
-time_list = df["Time"].dropna().astype(str).str.strip().tolist()
-
+time_list = df["ISOT"].dropna().astype(str).str.strip().tolist()
 
 class Finder(Sawtooth_Period_Finder):
 
@@ -240,10 +244,10 @@ class Finder(Sawtooth_Period_Finder):
 
 if __name__ == "__main__":
     finder = Finder(
-        name="Test",
+        name="V520 Cas",
         time=time_list,
-        magnitude=df["Magnitude"].values,
-        magnitude_error=df["Magnitude Error"].values,
+        magnitude=df["m_standard"].values,
+        magnitude_error=df["m_standard_err"].values,
     )
 
     finder.run_period_analysis()

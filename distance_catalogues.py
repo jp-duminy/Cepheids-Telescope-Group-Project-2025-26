@@ -8,6 +8,6 @@ cepheid_distances = {
     "07": {"name": "V Lac", "distance": 1631 },
     "08": {"name": "SW Cas", "distance": 2008 },
     "09": {"name": "TU Cas", "distance": 808 },
-    "10": {"name": "SZ Cas", "distance": 1688},
-    "11": {"name": "DL Cas", "distance": 605 },
+    "10": {"name": "DL Cas", "distance": 1688},
+    "11": {"name": "V636 Cas", "distance": 605 },
 }

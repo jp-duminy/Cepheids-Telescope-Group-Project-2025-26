@@ -10,6 +10,8 @@ from matplotlib import pyplot as plt
 from period_fitting_sinusoid import Sinusoid_Period_Finder
 import corner
 
+output_path = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/AliceInChains"
+
 class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
 
     def __init__(self, name, time, magnitude, magnitude_error):
@@ -206,7 +208,7 @@ class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
         self.thin = thin
         self.flat_samples = self.sampler.get_chain(thin=self.thin, flat=True)
 
-        chain_filename = f"chains/{self.name}_sawtooth_chain.npy"
+        chain_filename = f"{output_path}/{self.name}_sawtooth_chain.npy"
         np.save(chain_filename, self.flat_samples)
         print(f"Chain saved to {chain_filename}")
         
@@ -222,7 +224,7 @@ class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
             'chain_shape': self.flat_samples.shape
         }
         
-        metadata_filename = f"chains/{self.name}_sawtooth_metadata.txt"
+        metadata_filename = f"{output_path}/{self.name}_sawtooth_metadata.txt"
         with open(metadata_filename, 'w') as f:
             for key, value in metadata.items():
                 f.write(f"{key}: {value}\n")

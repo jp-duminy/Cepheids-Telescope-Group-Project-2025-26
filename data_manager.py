@@ -7,6 +7,8 @@ from pathlib import Path
 # can leave as apparent magnitudes, P-L functions convert these to absolute.
 #
 
+
+
 def prepare_period_fit_data(photometry_dir, cepheid_id):
     """
     Finds the photometry data for each individual cepheid.
@@ -14,6 +16,7 @@ def prepare_period_fit_data(photometry_dir, cepheid_id):
     all_data = []
     for csv_file in sorted(Path(photometry_dir).glob("photometry_*.csv")):
         df = pd.read_csv(csv_file)
+        df["ID"] = df["ID"].apply(lambda x: f"{int(x):02d}")
         cep_rows = df[df["ID"] == cepheid_id]
         all_data.append(cep_rows)
 
@@ -47,6 +50,9 @@ def export_all_cepheid_csvs(photometry_dir, output_dir, cepheid_ids):
 if __name__ == "__main__":
     photometry_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Photometry"
     output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/RawData"
+    df = pd.read_csv(Path(photometry_dir) / "photometry_2025-10-06.csv")
+    print(df["ID"].dtype)
+    print(df["ID"].unique())
     cepheid_ids = ["01", "02", "03", "04", "05", "06",
                    "07", "08", "09", "10", "11"]
 
