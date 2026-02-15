@@ -7,6 +7,8 @@ from astropy.visualization import ZScaleInterval
 import matplotlib.pyplot as plt
 from astropy.stats import sigma_clipped_stats
 import warnings
+from scipy.ndimage import shift
+from skimage.registration import phase_cross_correlation
     
 
 class Calibration_Set:
@@ -340,13 +342,118 @@ class Cepheid_Image_Stacker:
     night + Cepheid.
     """
     @staticmethod
-    def stack_images(image_list, headers_list, method='median'):
+    def align_images(image_list, reference_idx=0, max_shift_threshold=50):
+        """
+        Align images using cross-correlation to a reference image.
+        
+        Parameters
+        ----------
+        image_list : list
+            List of 2D numpy arrays to align
+        reference_idx : int
+            Index of the reference image (default: 0, first image)
+        max_shift_threshold : float
+            Maximum allowed shift in pixels. Images with larger shifts are rejected.
+            
+        Returns
+        -------
+        aligned_images : list
+            List of aligned images
+        shifts : list
+            List of (y_shift, x_shift) tuples for each image
+        """
+        reference = image_list[reference_idx]
+        aligned_images = []
+        shifts_list = []
+        rejected_count = 0
+        
+        print(f"  Aligning {len(image_list)} images to reference (image {reference_idx+1})...")
+        
+        for i, image in enumerate(image_list):
+            if i == reference_idx:
+                # Reference image doesn't need alignment
+                aligned_images.append(image)
+                shifts_list.append((0.0, 0.0))
+                continue
+            
+            try:
+                # Calculate shift using phase cross-correlation with lower upsampling
+                shift_yx, error, diffphase = phase_cross_correlation(
+                    reference, image, upsample_factor=2  # Reduced from 10 to avoid over-interpolation
+                )
+                
+                shift_magnitude = np.sqrt(shift_yx[0]**2 + shift_yx[1]**2)
+                
+                # Check if shift is reasonable
+                if shift_magnitude > max_shift_threshold:
+                    print(f"    Image {i+1}: REJECTED - shift too large ({shift_magnitude:.2f} > {max_shift_threshold} pixels)")
+                    rejected_count += 1
+                    continue
+                
+                # Apply shift with higher-order interpolation for better quality
+                aligned = shift(image, shift_yx, mode='constant', cval=0.0, order=3)
+                aligned_images.append(aligned)
+                shifts_list.append(tuple(shift_yx))
+                
+                print(f"    Image {i+1}: shift = ({shift_yx[0]:.2f}, {shift_yx[1]:.2f}) pixels (magnitude: {shift_magnitude:.2f})")
+                
+            except Exception as e:
+                print(f"    Warning: Failed to align image {i+1}: {e}")
+                print(f"    Skipping this image.")
+                rejected_count += 1
+                continue
+        
+        if rejected_count > 0:
+            print(f"  ⚠ {rejected_count} image(s) rejected due to alignment issues")
+        
+        return aligned_images, shifts_list
+    
+    @staticmethod
+    def stack_images(image_list, headers_list, method='median', align=True):
         """
         Stacks images and combines headers for photometry.
+        
+        Parameters
+        ----------
+        image_list : list
+            List of 2D numpy arrays to stack
+        headers_list : list
+            List of FITS headers
+        method : str
+            Stacking method: 'median' or 'mean'
+        align : bool
+            Whether to align images before stacking (default: True)
         """
+        if len(image_list) == 0:
+            raise ValueError("No images to stack!")
+        
+        original_count = len(image_list)
+        
+        if align and len(image_list) > 1:
+            print(f"\n  Aligning images before stacking...")
+            aligned_images, shifts = Cepheid_Image_Stacker.align_images(image_list)
+            
+            if len(aligned_images) == 0:
+                print("  ⚠ All images rejected during alignment. Falling back to unaligned stacking.")
+                aligned_images = image_list
+            elif len(aligned_images) < original_count:
+                print(f"  → Using {len(aligned_images)}/{original_count} images after alignment filtering")
+                # Adjust headers list to match aligned images
+                # This is tricky - we need to track which images were kept
+                # For now, just use the first N headers
+                headers_list = headers_list[:len(aligned_images)]
+            else:
+                max_shift = max([np.sqrt(s[0]**2 + s[1]**2) for s in shifts])
+                print(f"  ✓ Maximum shift: {max_shift:.2f} pixels")
+            
+            image_list = aligned_images
+        
+        if len(image_list) == 0:
+            raise ValueError("No valid images remaining after alignment!")
+        
         image_stack = np.stack(image_list, axis=0)
         if method == 'mean':
-            final_image = np.mean(image_stack, axis=0) # go with mean for now, potentially implement sigma clipping later
+            final_image = np.mean(image_stack, axis=0)
         else:
             final_image = np.median(image_stack, axis=0)
 
@@ -354,18 +461,78 @@ class Cepheid_Image_Stacker:
         base_header['TOTEXP'] = sum(h.get('EXPTIME', 0) for h in headers_list)
         base_header['MEANEXP'] = base_header['TOTEXP'] / len(headers_list)
 
-        gains = [h.get('GAIN', 0) for h in headers_list if 'GAIN' in h] # check if gain is in headers
+        gains = [h.get('GAIN', 0) for h in headers_list if 'GAIN' in h]
         if gains:
             base_header['MEANGAIN'] = float(np.mean(gains))
 
-        read_noises = [h.get('RDNOISE', 0) for h in headers_list if 'RDNOISE' in h] # check if read noise is in headers
+        read_noises = [h.get('RDNOISE', 0) for h in headers_list if 'RDNOISE' in h]
         if read_noises:
             base_header['TOTRN'] = float(np.sqrt(np.sum(np.array(read_noises)**2)))
 
         base_header['NSTACK'] = len(image_list)
+        base_header['ALIGNED'] = align
         base_header['COMMENT'] = f'Stacked {len(image_list)} images using {method}'
+        if align:
+            base_header['COMMENT'] = 'Images aligned before stacking'
 
         return final_image, base_header
+
+
+def select_images_interactively(reduced_images, headers, fits_file_names=None):
+    """
+    Interactively select which images to include in the stack.
+    
+    Parameters
+    ----------
+    reduced_images : list
+        List of reduced image arrays
+    headers : list
+        List of FITS headers corresponding to images
+    fits_file_names : list, optional
+        List of file names for reference
+        
+    Returns
+    -------
+    selected_images : list
+        Filtered list of reduced images
+    selected_headers : list
+        Filtered list of headers
+    """
+    if len(reduced_images) == 0:
+        return reduced_images, headers
+    
+    selected_indices = []
+    
+    for i, (image, header) in enumerate(zip(reduced_images, headers)):
+        # Display image info
+        fname = fits_file_names[i].name if fits_file_names else f"Image {i+1}"
+        exp_time = header.get('EXPTIME', 'N/A')
+        
+        print(f"\n[{i+1}/{len(reduced_images)}] {fname}")
+        print(f"  Exposure time: {exp_time}s")
+        print(f"  Image min/max: {np.min(image):.0f} / {np.max(image):.0f} ADU")
+        print(f"  Image mean: {np.mean(image):.0f} ADU, std: {np.std(image):.0f} ADU")
+        
+        # Ask user
+        while True:
+            response = input("  Include in stack? (y/n/skip): ").lower().strip()
+            if response in ['y', 'yes', 'n', 'no', 's', 'skip']:
+                break
+            print("  Please enter 'y', 'n', or 'skip'")
+        
+        if response in ['y', 'yes']:
+            selected_indices.append(i)
+        elif response == 's':
+            # 'skip' still includes the image (continue to next)
+            selected_indices.append(i)
+    
+    # Filter based on selections
+    selected_images = [reduced_images[i] for i in selected_indices]
+    selected_headers = [headers[i] for i in selected_indices]
+    
+    print(f"\n→ Selected {len(selected_images)} out of {len(reduced_images)} images for stacking")
+    
+    return selected_images, selected_headers
 
 def run_pipeline(
     base_dir,
@@ -374,10 +541,36 @@ def run_pipeline(
     filter_name="V",
     output_dir=None,
     cepheid_nums=None,
-    visualise=True
+    visualise=True,
+    target_week=None,
+    interactive_selection=False,
+    align_images=True
 ):
     """
     Executes the complete cepheid reduction pipeline and displays final images.
+    
+    Parameters
+    ----------
+    base_dir : str
+        Base directory containing Cepheids and Calibrations folders
+    night_to_week_mapping : dict
+        Mapping of night dates to week labels
+    binning : str
+        Binning mode (default: "binning1x1")
+    filter_name : str
+        Filter name (default: "V")
+    output_dir : str
+        Output directory for stacked images
+    cepheid_nums : list
+        List of cepheid numbers to process. If None, process all.
+    visualise : bool
+        Whether to visualize final stacked images (default: True)
+    target_week : str
+        Only process nights from this week (e.g., "week1"). If None, process all weeks.
+    interactive_selection : bool
+        If True, allow user to include/exclude images before stacking (default: False)
+    align_images : bool
+        If True, align images before stacking to avoid doubled stars (default: True)
     """
 
     # directories
@@ -398,6 +591,13 @@ def run_pipeline(
     # find unique weeks
     weeks = sorted(set(night_to_week_mapping.values()))
     print(f"\nWeeks to process: {weeks}") # expect 5 weeks!
+    
+    # Filter weeks if target_week specified
+    if target_week is not None:
+        if target_week not in weeks:
+            raise ValueError(f"Target week '{target_week}' not found in mapping. Available: {weeks}")
+        weeks = [target_week]
+        print(f"Filtering to target week: {target_week}")
 
     # create calibration for each week
     for week in weeks:
@@ -435,6 +635,11 @@ def run_pipeline(
             print(f"\n No calibration mapping for {night_name}")
             continue
         
+        # Filter by week if target_week specified
+        current_week = night_to_week_mapping[night_name]
+        if target_week is not None and current_week != target_week:
+            continue
+        
         print("="*40)
         print(f"NIGHT: {night_name}")
         print("="*40)
@@ -457,8 +662,21 @@ def run_pipeline(
         # process each cepheid individually
         for ceph_num, all_files in sorted(ceph_data.items()):
             # only select requested cepheids
-            #if cepheid_nums is not None and ceph_num not in cepheid_nums:
-                #continue
+            # Check if any file contains the standard designation (e.g., "Standard1", "Standard2")
+            if cepheid_nums is not None:
+                should_process = False
+                for fits_file in all_files:
+                    filename = fits_file.name
+                    # Check if this file matches one of the requested standards
+                    for ceph in cepheid_nums:
+                        if f"Standard{ceph}" in filename:
+                            should_process = True
+                            break
+                    if should_process:
+                        break
+                
+                if not should_process:
+                    continue
             
             print(f"\nCepheid {ceph_num}:")
             print(f"Total files found: {len(all_files)}")
@@ -487,11 +705,24 @@ def run_pipeline(
                 print(f"No valid images after reduction")
                 continue
             
+            # Interactive image selection if enabled
+            if interactive_selection:
+                print(f"\nInteractive mode: Select images to include in stack")
+                print(f"Total reduced images: {len(reduced_images)}")
+                reduced_images, headers = select_images_interactively(
+                    reduced_images, headers, fits_file_names=useful_files
+                )
+            
+            if len(reduced_images) == 0:
+                print(f"No images selected for stacking")
+                continue
+            
             # stack images
             stacked, combined_header = Cepheid_Image_Stacker.stack_images(
                 reduced_images, 
                 headers, 
-                method='median'
+                method='median',
+                align=align_images
             )
             
             # save file
@@ -609,15 +840,35 @@ if __name__ == "__main__":
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
     ]
 
+    # EXAMPLE 1: Standard 1 only, week 1 only, with interactive image selection
+    print("\n" + "="*70)
+    print("EXAMPLE 1: Standard 1, Week 1, with interactive selection")
+    print("="*70)
     summary, images = run_pipeline(
-    base_dir="/storage/teaching/TelescopeGroupProject/2025-26",
-    night_to_week_mapping=night_to_week_mapping,
-    output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids",
-    cepheid_nums=cepheid_nums,
-    visualise=True
+        base_dir="/storage/teaching/TelescopeGroupProject/2025-26",
+        night_to_week_mapping=night_to_week_mapping,
+        output_dir="/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids",
+        cepheid_nums=[1],  # Only standard 1
+        target_week='week1',  # Only week 1
+        interactive_selection=True,  # Allow include/exclude before stacking
+        align_images=False,  # Set to True to enable alignment (may blur if shifts are large)
+        visualise=True
     )
 
-
+    # EXAMPLE 2: Standard 1, week 1, automatic (non-interactive)
+    # Uncomment to use instead of Example 1:
+    # print("\n" + "="*70)
+    # print("EXAMPLE 2: Standard 1, Week 1, automatic")
+    # print("="*70)
+    # summary, images = run_pipeline(
+    #     base_dir="/storage/teaching/TelescopeGroupProject/2025-26",
+    #     night_to_week_mapping=night_to_week_mapping,
+    #     output_dir="/storage/teaching/TelescopeGroupProject/2025-26/student-work/",
+    #     cepheid_nums=[1],  # Only standard 1
+    #     target_week='week1',  # Only week 1
+    #     interactive_selection=False,  # Automatic stacking
+    #     visualise=True
+    # )
 
 
 
