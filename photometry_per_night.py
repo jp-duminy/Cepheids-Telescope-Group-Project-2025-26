@@ -25,6 +25,7 @@ from AirmassInfo import AirmassInfo
 # catalogues
 from catalogues import ALL_CATALOGUES, get_catalogues_for_night, get_pixel_guess
 from reference_star_catalogues import reference_catalogue
+from orientation_catalogue import cepheid_orientation_catalogue
 
 # updated DAOStarFinder
 from photutils.detection import DAOStarFinder
@@ -371,7 +372,7 @@ class SinglePhotometry:
         plt.axvline(fwhm / 2, color='blue', linestyle=':', alpha=0.5, label=f'FWHM/2 = {fwhm/2:.1f} px')
         plt.axvline(-fwhm / 2 + fwhm, color='blue', linestyle=':', alpha=0.5)
         plt.xlabel('Radius from centroid [pixels]')
-        plt.ylabel('Normalised flux')
+        plt.ylabel('Normalised Flux')
         plt.title(f'Radial PSF profile — {name}')
         plt.legend()
         plt.show()
@@ -483,12 +484,14 @@ class DifferentialCorrections:
     """
     Differential photometry: analysing reference stars for each cepheid in order to correct for night-by-night variations.
     """
-    def __init__(self, cepheid_id, fits_path, reference_catalogue, calibration):
+    def __init__(self, cepheid_id, fits_path, reference_catalogue, calibration, reference_flipstat):
         self.cepheid_id = cepheid_id
         self.fits_path = fits_path
         self.refs = reference_catalogue.get(cepheid_id, {})
         self.calibration = calibration # standard star airmass correction
-        self.flipped = False
+
+        self.reference_flipstat = reference_flipstat
+        self.flipped = self.check_flip()
 
     @staticmethod
     def flip_coords(x, y):
@@ -508,10 +511,27 @@ class DifferentialCorrections:
             x, y = self.flip_coords(x, y)
         return x, y
     
+    def check_flip(self):
+        """
+        Checks whether the image is flipped relative to the reference direction from 2025-10-06.
+        So, if this is detecting flips on the testing night, something is very wrong.
+        """
+        with fits.open(self.fits_path) as hdul:
+            current_flipstat = hdul[0].header.get("FLIPSTAT", None)
+        
+        if current_flipstat is None:
+            warnings.warn(f"No FLIPSTAT in {self.fits_path.name}")
+            return False
+        
+        return current_flipstat != self.reference_flipstat
+    
     def count_matches(self, use_flip):
         """
         Determines how many bright reference stars are found for a given image orientation.
         Reuses locate_star code but not too much.
+
+        DEFUNCT!!!
+
         """
         ap = AperturePhotometry(str(self.fits_path))
         mean, median, std = sigma_clipped_stats(ap.data, sigma=6.0)
@@ -540,6 +560,9 @@ class DifferentialCorrections:
     def detect_and_correct_flip(self):
         """
         Detects whether the image is flipped by checking how many stars are found according to their assigned coordinates.
+
+        DEFUNCT!!!
+
         """
         n_normal = self.count_matches(use_flip=False)
         if n_normal >= 3: # this threshold should work
@@ -559,9 +582,6 @@ class DifferentialCorrections:
         Compute standard magnitudes of reference stars and compare offset from true value.
         Provides estimate of empirical error.
         """
-        # start by detecting whether image is flipped
-        self.detect_and_correct_flip()
-
         # standard calibrations
         k = self.calibration["k"]
         Z1 = self.calibration["Z1"]
@@ -655,7 +675,7 @@ def plot_full_sky_subtracted(fits_path, name, date):
             vmin=0, vmax=np.percentile(subtracted[subtracted > 0], 99))
     ax.set_xlabel('x [pixels]')
     ax.set_ylabel('y [pixels]')
-    ax.set_title(f"Sky-Subtracted Full Image for {name} ({date})")
+    ax.set_title(f"Sky-Subtracted Full Image: {name}, ({date})")
     plt.show()
 
 def main(night, diagnostic_plot=False, refit_calibration=False):
@@ -688,7 +708,7 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
 
     cep_files = data_manager.find_cepheid_files()
 
-    # pull out background subtracted MW Cyg
+    # pull out background subtracted MW Cyg from every night
     if diagnostic_plot and len(cep_files) > 0:
         plot_full_sky_subtracted(cep_files[0], "MW Cyg", night)
 
@@ -718,7 +738,7 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
 
         m_calibrated = m_inst + Z1 + k * airmass
 
-        diff = DifferentialCorrections(cep_id, cep_file, reference_catalogue, calibration)
+        diff = DifferentialCorrections(cep_id, cep_file, reference_catalogue, calibration, cepheid_orientation_catalogue[cep_id])
         m_corrected, m_corrected_err = diff.apply(m_calibrated, m_inst_err, plot=diagnostic_plot)
 
         A_V = phot.dust_correction()
