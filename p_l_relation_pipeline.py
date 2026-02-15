@@ -10,6 +10,11 @@ from matplotlib import pyplot as plt
 from general_functions import Astro_Functions
 import corner
 
+from distance_catalogues import cepheid_distances
+import pandas as pd
+from pathlib import Path
+from run_period_fit import Finder
+
 class PLRelation:
     def __init__(self, objects, distances):
         self.objects = objects
@@ -226,3 +231,56 @@ class PLRelation:
         print(f"Intrinsic scatter: {self.sigma:.3f} mag")
         print(f"\nLiterature (Benedict et al. 2007): M = -2.43(log₁₀P - 1) - 4.05")
         print(f"{'='*60}\n")
+
+if __name__ == "__main__":
+
+    chain_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/AliceInChains"
+    per_cepheid_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/RawData"
+
+    cepheid_ids = sorted(cepheid_distances.keys())
+
+    finders = []
+    distances = []
+
+    for cep_id in cepheid_ids:
+        csv_files = sorted(Path(per_cepheid_dir).glob(f"cepheid_{cep_id}_*.csv"))
+        if not csv_files:
+            print(f"No CSV found for Cepheid {cep_id}, skipping")
+            continue
+
+        df = pd.read_csv(csv_files[0])
+
+        finder = Finder(
+            name=df["Name"].iloc[0],
+            time=df["ISOT"].dropna().astype(str).str.strip().tolist(),
+            magnitude=df["m_standard"].values,
+            magnitude_error=df["m_standard_err"].values,
+        )
+
+        # try sinusoid chain first, fall back to sawtooth
+        name = df["Name"].iloc[0]
+        sine_chain = Path(f"{chain_dir}/{name}_sinusoid_chain.npy")
+        saw_chain = Path(f"{chain_dir}/{name}_sawtooth_chain.npy")
+
+        if sine_chain.exists():
+            finder.flat_samples = np.load(sine_chain)
+            print(f"Loaded sinusoid chain for {name}")
+        elif saw_chain.exists():
+            finder.flat_samples = np.load(saw_chain)
+            print(f"Loaded sawtooth chain for {name}")
+        else:
+            print(f"No chain found for {name}, skipping")
+            continue
+
+        finders.append(finder)
+        distances.append(cepheid_distances[cep_id]["distance"])
+
+    print(f"\nLoaded {len(finders)} Cepheids for P-L relation")
+
+    pl = PLRelation(objects=finders, distances=distances)
+    pl.resample_chains()
+    pl.run_mcmc()
+    pl.pl_parameter_time_series()
+    pl.pl_plot_corner()
+    pl.pl_plot_emcee_fit()
+    pl.print_results()

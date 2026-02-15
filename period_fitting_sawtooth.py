@@ -315,11 +315,10 @@ class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
         med_model = np.median(models, axis=0)  # Median model
         
         return med_model, spread
-
+    
+    """
     def saw_plot_emcee_fit(self):
-        """
-        Plot the model returned by emcee with 1-sigma posterior uncertainty band.
-        """
+
         fig, ax = plt.subplots()
 
         # Generate dense time array for smooth curves
@@ -346,7 +345,38 @@ class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
         ax.grid(True, alpha=0.3)
 
         plt.show()
+    """
 
+    def saw_plot_emcee_fit(self):
+        """
+        Phase-folded emcee fit with 2-sigma posterior uncertainty band.
+        """
+        phase = (self.time % self.mc_period0) / self.mc_period0
+
+        fig, ax = plt.subplots()
+
+        ax.errorbar(phase, self.magnitude, yerr=self.magnitude_error,
+                    fmt='o', color='black', capsize=3, label='Data', zorder=3)
+        ax.errorbar(phase + 1, self.magnitude, yerr=self.magnitude_error,
+                    fmt='o', color='gray', capsize=3, alpha=0.4, zorder=2)
+
+        x_phase = np.linspace(0, 2, 500)
+        x_time = x_phase * self.mc_period0
+        med_model, spread = self.saw_sample_walkers(100, self.flat_samples, x_time)
+
+        ax.plot(x_phase, med_model, 'r-', linewidth=2, label='Median Model', zorder=4)
+        ax.fill_between(x_phase, med_model - spread, med_model + spread,
+                        color='grey', alpha=0.4, label=r'$1\sigma$', zorder=1)
+        ax.fill_between(x_phase, med_model - 2*spread, med_model + 2*spread,
+                        color='grey', alpha=0.2, label=r'$2\sigma$', zorder=0)
+
+        ax.set_xlabel('Phase')
+        ax.set_ylabel('Apparent Magnitude')
+        ax.set_title(f'Emcee Sawtooth Fit — {self.name} (P = {self.mc_period0:.3f} d)')
+        ax.invert_yaxis()
+        ax.legend()
+        ax.set_xlim(0, 2)
+        plt.show()
 
     
 
