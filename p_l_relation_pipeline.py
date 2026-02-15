@@ -182,11 +182,8 @@ class PLRelation:
             title_fmt=".3f"
             ) 
         plt.show()
-
+    """
     def pl_plot_emcee_fit(self):
-        """
-        Plot the model returned by emcee.
-        """
         fig, ax = plt.subplots()
 
         # generate some plotting data
@@ -212,6 +209,38 @@ class PLRelation:
         ax.invert_yaxis()
         ax.grid(True, alpha=0.3)
         ax.set_title('Emcee Period-Luminosity Relation Fit')
+        plt.show()
+    """
+    def pl_plot_emcee_fit(self):
+        """
+        Plot the P-L relation with each Cepheid in a different colour.
+        """
+        fig, ax = plt.subplots()
+
+        colors = plt.cm.tab20(np.linspace(0, 1, len(self.objects)))
+
+        for i in range(len(self.objects)):
+            ax.scatter(np.log10(self.period_posteriors[i]), self.magnitude_posteriors[i],
+                    alpha=0.1, s=5, color=colors[i])
+
+            med_p = np.median(self.period_posteriors[i])
+            med_m = np.median(self.magnitude_posteriors[i])
+            ax.errorbar(np.log10(med_p), med_m, fmt='o', color=colors[i],
+                        markersize=8, markeredgecolor='black', markeredgewidth=0.5,
+                        label=self.names[i])
+
+        all_median_periods = [np.median(p) for p in self.period_posteriors]
+        period_range = np.linspace(min(all_median_periods) * 0.9, max(all_median_periods) * 1.1, 100)
+        M_fit = self.pl_model(period_range, self.a0, self.b0)
+        ax.plot(np.log10(period_range), M_fit, 'r-', linewidth=2,
+                label=f'Fit: M = {self.a0:.2f}(log P - 1) + {self.b0:.2f}')
+
+        ax.set_xlabel(r'$\log_{10}$(Period) [days]')
+        ax.set_ylabel('Absolute Magnitude')
+        ax.legend(fontsize=7, ncol=2)
+        ax.invert_yaxis()
+        ax.grid(True, alpha=0.3)
+        ax.set_title('Period-Luminosity Relation')
         plt.show()
 
     def print_results(self):
