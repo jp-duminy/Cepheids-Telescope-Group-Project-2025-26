@@ -40,7 +40,7 @@ class AperturePhotometry:
         #Normalise to cts per second
         self.data = data / float(header["EXPTIME"])
 
-        self.wcs = WCS(header)
+        #self.wcs = WCS(header) (defunct)
 
     def get_pixel_coords(self, RA, Dec):
         """Converts world coordinates of targets (RA, Dec) to pixel coordinates (x, y). 
