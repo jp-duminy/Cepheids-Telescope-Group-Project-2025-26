@@ -357,11 +357,17 @@ class Airmass:
         wls_model = sm.WLS(y, X_sm, weights=w)
         results = wls_model.fit()
         Z, k = results.params
-        Z_err, k_err = results.bse
-        #Comment
+        cov_zk = results.cov_params()
 
         Z_airmass1 = Z + k * 1.0
-        Z_airmass1_err = np.sqrt(Z_err ** 2 + k_err ** 2)
+
+        # Transform covariance from (Z, k) to (Z1, k)
+        transform = np.array([[1.0, 1.0], [0.0, 1.0]])
+        cov_z1k = transform @ cov_zk @ transform.T
+        self.param_cov = cov_z1k
+
+        k_err = np.sqrt(cov_z1k[1, 1])
+        Z_airmass1_err = np.sqrt(cov_z1k[0, 0])
         return k, Z_airmass1, k_err, Z_airmass1_err
         
     def plot_atmospheric_extinction(self, k, Z1, k_err, Z1_err):
@@ -392,8 +398,16 @@ class Airmass:
         y_fit = Z1 + k * (x_fit - 1.0)
         plt.plot(x_fit, y_fit, 'r-', linewidth=2, label=f'Fit: k={k:.3f}±{k_err:.3f}, Z(airmass=1)={Z1:.2f}')
         #Add shaded region for 1σ uncertainty
-        y_fit_upper = (Z1 + Z1_err) + (k + k_err) * (x_fit - 1.0)
-        y_fit_lower = (Z1 - Z1_err) + (k - k_err) * (x_fit - 1.0)
+        cov = getattr(self, "param_cov", None)
+        if cov is not None:
+            dx = x_fit - 1.0
+            var_y = cov[0, 0] + 2.0 * cov[0, 1] * dx + cov[1, 1] * dx ** 2
+            sigma_y = np.sqrt(np.maximum(var_y, 0.0))
+            y_fit_upper = y_fit + sigma_y
+            y_fit_lower = y_fit - sigma_y
+        else:
+            y_fit_upper = (Z1 + Z1_err) + (k + k_err) * (x_fit - 1.0)
+            y_fit_lower = (Z1 - Z1_err) + (k - k_err) * (x_fit - 1.0)
         plt.fill_between(x_fit, y_fit_lower, y_fit_upper, color='r', alpha=0.2)
         plt.xlabel('Airmass')
         plt.ylabel('V - m_inst')
@@ -424,10 +438,29 @@ class Airmass:
         None
         '''
 
-        k_values = np.linspace(k_best - 5*k_err, k_best + 5*k_err, 100) 
-        Z1_values = np.linspace(Z1_best - 5*Z1_err, Z1_best + 5*Z1_err, 100) 
-        K, Z1 = np.meshgrid(k_values, Z1_values) 
-        chi2 = ((k_best - K) / k_err) ** 2 + ((Z1_best - Z1) / Z1_err) ** 2 
+        cov = getattr(self, "param_cov", None)
+        if cov is not None:
+            k_sigma = np.sqrt(cov[1, 1])
+            Z1_sigma = np.sqrt(cov[0, 0])
+        else:
+            k_sigma = k_err
+            Z1_sigma = Z1_err
+
+        k_values = np.linspace(k_best - 5 * k_sigma, k_best + 5 * k_sigma, 100)
+        Z1_values = np.linspace(Z1_best - 5 * Z1_sigma, Z1_best + 5 * Z1_sigma, 100)
+        K, Z1 = np.meshgrid(k_values, Z1_values)
+
+        if cov is not None:
+            inv_cov = np.linalg.inv(cov)
+            dZ1 = Z1 - Z1_best
+            dk = K - k_best
+            chi2 = (
+                inv_cov[0, 0] * dZ1 ** 2
+                + inv_cov[1, 1] * dk ** 2
+                + 2 * inv_cov[0, 1] * dZ1 * dk
+            )
+        else:
+            chi2 = ((k_best - K) / k_err) ** 2 + ((Z1_best - Z1) / Z1_err) ** 2
 
         #create contour plot of background (background contour fill completely), with coloured rings for 1σ, 2σ, 3σ confidence intervals
         plt.contourf(K, Z1, chi2, levels=50, cmap='viridis', alpha=0.5)
@@ -437,9 +470,14 @@ class Airmass:
         plt.ylabel('Zero-point at Airmass=1 (Z)')
         plt.title('Parameter Space for Extinction Fit')
         plt.legend()
-        #add legend for confidence intervals
-        custom_lines = [Line2D([0], [0], color='white', lw=2), Line2D([0], [0], color='white', lw=2, linestyle='--'), Line2D([0], [0], color='white', lw=2, linestyle=':')] 
-        plt.legend(custom_lines, ['1σ (68.3%)', '2σ (95.4%)', '3σ (99.7%)'], loc='upper right')
+        #add legend for confidence intervals and best fit
+        custom_lines = [
+            Line2D([0], [0], color='white', lw=2),
+            Line2D([0], [0], color='white', lw=2, linestyle='--'),
+            Line2D([0], [0], color='white', lw=2, linestyle=':'),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='b', markersize=6)
+        ]
+        plt.legend(custom_lines, ['1σ (68.3%)', '2σ (95.4%)', '3σ (99.7%)', 'Best Fit'], loc='upper right')
         plt.grid()
         plt.show()
 
