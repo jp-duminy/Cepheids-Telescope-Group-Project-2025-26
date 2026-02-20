@@ -533,6 +533,29 @@ class DifferentialCorrections:
             print(f"Image is not flipped.")
         
         return current_flipstat != self.reference_flipstat
+
+    def debug_flip(self, plot=True):
+        """
+        Plot reference star expected positions on the image.
+        """
+        ap = AperturePhotometry(str(self.fits_path))
+        fig, axes = plt.subplots(1, 2, figsize=(14, 7))
+        
+        for ax, do_flip, label in zip(axes, [False, True], ['Original', 'Flipped']):
+            ax.imshow(ap.data, origin='lower',
+                    norm=LogNorm(vmin=np.median(ap.data),
+                                vmax=np.percentile(ap.data, 99)),
+                    cmap='gray')
+            for ref_id, ref_data in self.refs.items():
+                x, y = float(ref_data["x-coord"]), float(ref_data["y-coord"])
+                if do_flip:
+                    x, y = self.flip_coords(x, y)
+                ax.plot(x, y, 'rx', markersize=12, markeredgewidth=2)
+                ax.annotate(ref_id, (x, y), color='red', fontsize=8)
+            ax.set_title(f'{label} — FLIPSTAT={self.flipped}')
+        
+        plt.suptitle(self.fits_path.name)
+        plt.show()
     
     def count_matches(self, use_flip):
         """
@@ -749,6 +772,7 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
 
         diff = DifferentialCorrections(cep_id, cep_file, reference_catalogue, calibration, cepheid_orientation_catalogue[cep_id])
         m_corrected, m_corrected_err = diff.apply(m_calibrated, m_inst_err, plot=diagnostic_plot)
+        diff.debug_flip(plot=True)
 
         A_V = phot.dust_correction()
         m_diff = m_corrected - A_V
