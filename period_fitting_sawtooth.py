@@ -327,7 +327,6 @@ class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
             self.flat_samples, labels=labels, show_titles=True, # displays uncertainties
             quantiles = [0.16, 0.50, 0.84], # 0.025-0.975 ~ 2σ gaussian error, 0.5 is the median
             title_fmt=".3f",
-            range=[0.99] * self.flat_samples.shape[1]
             ) 
         plt.show()
 
