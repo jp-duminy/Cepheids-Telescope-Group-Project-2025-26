@@ -225,7 +225,11 @@ class Sinusoid_Period_Finder:
         This function takes a parameter vector [a, p, m, f] and returns the ln-likelihood.
         """
         a, p, m, period = theta
+        if period <= 0:
+            return -np.inf
         modelled_magnitude = self.sinusoid_model(self.time, a, p, m, period)
+        if not np.all(np.isfinite(modelled_magnitude)):
+            return -np.inf
         residuals = self.magnitude - modelled_magnitude
         constant = np.log(2 * np.pi * self.magnitude_error**2) # constant term added for completeness
 
@@ -265,21 +269,31 @@ class Sinusoid_Period_Finder:
         """
         Uses chi-squared result to determine best initial position for walkers.
         """
+        original_a0 = self.a0
+        self.a0 = abs(self.a0)
+        if original_a0 < 0:
+            self.p0 = self.p0 + np.pi
         pos = np.array([self.a0, self.p0, self.m0, self.period0]) # stitch into parameter vector
 
         # recreate boundaries from sine_ln_prior
-        a_min, a_max = -2 * abs(self.a0), 2 * abs(self.a0)
-        p_min, p_max = -np.pi, np.pi
-        m_min, m_max = self.m0 - 2*abs(self.m0), self.m0 + 2*abs(self.m0)
+        a_min, a_max = 0, 2 * abs(self.a0)
+        p_min, p_max = 0, 2*np.pi # explores all of phase space
+        m_min, m_max = self.m0 - 1, self.m0 + 1
         period_min, period_max = 0.9 * self.period0, 1.1 * self.period0  
         
-        starting_position = pos + 1e-1 * np.random.randn(nwalkers, ndim)
+        scales = np.array([0.5 * abs(self.a0),
+                            1.0,
+                            0.5,
+                            0.10 * self.period0])
+        
+        starting_position = pos + scales * np.random.randn(nwalkers, ndim)
         
         # Clip to ensure all walkers are within bounds
         starting_position[:, 0] = np.clip(starting_position[:, 0], a_min, a_max)
         starting_position[:, 1] = np.clip(starting_position[:, 1], p_min, p_max)
         starting_position[:, 2] = np.clip(starting_position[:, 2], m_min, m_max)
         starting_position[:, 3] = np.clip(starting_position[:, 3], period_min, period_max)
+
         return starting_position
 
     def sine_run_mcmc(self):
@@ -295,7 +309,7 @@ class Sinusoid_Period_Finder:
 
         # first allow walkers to explore parameter space
         print(f"Running burn-in for {self.name}...")
-        pos = sampler.run_mcmc(pos, 500) # small burn-in of 500 steps
+        pos = sampler.run_mcmc(pos, 1000) # small burn-in of 1000 steps
         print(f"Burn-in complete.")
         sampler.reset() # reset sampler before main chain
 
@@ -314,6 +328,7 @@ class Sinusoid_Period_Finder:
                 thin = int(np.mean(tau) / 2) # thinning helps speed up computing
         except mc.autocorr.AutocorrError:
             print("Warning: chain too short for reliable autocorrelation estimate. Using fixed thin=10.")
+            tau = np.full(ndim, np.nan)
             thin = 10 
         self.thin = thin
         self.flat_samples = self.sampler.get_chain(thin=self.thin, flat=True)
@@ -339,7 +354,7 @@ class Sinusoid_Period_Finder:
             for key, value in metadata.items():
                 f.write(f"{key}: {value}\n")
 
-        quantiles = [2.5, 50, 97.5]  # 0.025-0.975 is ~ 2σ gaussian error
+        quantiles = [16, 50, 84]  # 0.025-0.975 is ~ 2σ gaussian error
         lower, median, upper = np.percentile(self.flat_samples, quantiles, axis=0)
 
         # the median (0.5) summarises the central tendency of the posterior distribution
@@ -383,7 +398,7 @@ class Sinusoid_Period_Finder:
         labels = ["Amplitude", "Phase", "Midline", "Period"]
         fig = corner.corner(
             self.flat_samples, labels=labels, show_titles=True, # displays uncertainties
-            quantiles = [0.025, 0.5, 0.975], # 0.025-0.975 ~ 2σ gaussian error, 0.5 is the median
+            quantiles = [0.16, 0.50, 0.84], # 0.025-0.975 ~ 2σ gaussian error, 0.5 is the median
             title_fmt=".3f",
             ) 
         plt.show()
