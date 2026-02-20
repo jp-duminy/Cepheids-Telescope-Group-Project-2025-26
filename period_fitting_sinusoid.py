@@ -147,6 +147,22 @@ class Sinusoid_Period_Finder:
         n_clipped = np.sum(~mask)
         if n_clipped > 0:
             print(f"Clipped {n_clipped} points beyond {sigma}σ")
+            fig, ax = plt.subplots()
+            ax.errorbar(self.time[mask], residuals[mask],
+                        yerr=self.magnitude_error[mask],
+                        fmt='o', color='black', capsize=3, label='Kept')
+            ax.errorbar(self.time[~mask], residuals[~mask],
+                        yerr=self.magnitude_error[~mask],
+                        fmt='x', color='red', capsize=3, markersize=10,
+                        label=f'Clipped ({sigma}σ)')
+            ax.axhline(0, color='red', linestyle='--', linewidth=1)
+            ax.axhline(sigma * std, color='orange', linestyle=':')
+            ax.axhline(-sigma * std, color='orange', linestyle=':')
+            ax.set_xlabel('Time [Days]')
+            ax.set_ylabel('Residuals')
+            ax.set_title(f'{sigma}σ Clipping — {self.name}')
+            ax.legend()
+            plt.show()
         
         return mask
 
@@ -504,7 +520,10 @@ class Sinusoid_Period_Finder:
         """
         phase = (self.time % self.mc_period0) / self.mc_period0
 
-        fig, ax = plt.subplots()
+        fig, (ax, ax_res) = plt.subplots(2, 1, figsize=(8, 6),
+                                      gridspec_kw={'height_ratios': [3, 1]},
+                                      sharex=True)
+        fig.subplots_adjust(hspace=0.05)
 
         ax.errorbar(phase, self.magnitude, yerr=self.magnitude_error,
                     fmt='o', color='black', capsize=3, label='Data', zorder=3)
@@ -520,8 +539,23 @@ class Sinusoid_Period_Finder:
                         color='grey', alpha=0.4, label=r'$1\sigma$', zorder=1)
         ax.fill_between(x_phase, med_model - 2*spread, med_model + 2*spread,
                         color='grey', alpha=0.2, label=r'$2\sigma$', zorder=0)
+        
+        model_at_data = self.sinusoid_model(self.time, self.mc_a0, self.mc_p0,
+                                         self.mc_m0, self.mc_period0)
+        residuals = self.magnitude - model_at_data
 
-        ax.set_xlabel('Phase')
+        ax_res.errorbar(phase, residuals, yerr=self.magnitude_error,
+                        fmt='o', color='black', capsize=3)
+        ax_res.errorbar(phase + 1, residuals, yerr=self.magnitude_error,
+                        fmt='o', color='gray', capsize=3, alpha=0.4)
+        ax_res.axhline(0, color='red', linestyle='--', linewidth=1)
+        ax_res.set_xlabel('Phase')
+        ax_res.set_ylabel('Residuals')
+        ax_res.set_xlim(0, 2)
+
+        # remove x-tick labels from top panel
+        ax.tick_params(labelbottom=False)
+
         ax.set_ylabel('Apparent Magnitude')
         ax.set_title(f'Emcee Sinusoid Fit — {self.name} (P = {self.mc_period0:.3f} d)')
         ax.invert_yaxis()

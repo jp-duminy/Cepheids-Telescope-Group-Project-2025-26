@@ -130,6 +130,12 @@ class Finder(Sawtooth_Period_Finder):
         print("\nGenerating chi-square comparison plots for both models...")
         
         # Fit and plot sinusoid
+        self.fit_sinusoid()
+        mask = self.clip_from_fit(sigma=3.0)  # 3σ clipping
+        if np.sum(~mask) > 0:
+            self.time = self.time[mask]
+            self.magnitude = self.magnitude[mask]
+            self.magnitude_error = self.magnitude_error[mask]
         sine_period, sine_params, sine_uncertainties, sine_chisqu = self.fit_sinusoid()
         print("Displaying SINUSOID chi-square plot...")
         self.plot_sinusoid_fit()
