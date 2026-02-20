@@ -135,6 +135,21 @@ class Sinusoid_Period_Finder:
 
         plt.show()
 
+    def clip_from_fit(self, sigma=2.0):
+        """
+        Sigma clip on residuals from the chi-square best fit.
+        """
+        model = self.sinusoid_model(self.time, self.a0, self.p0, self.m0, self.period0)
+        residuals = self.magnitude - model
+        std = np.std(residuals)
+        mask = np.abs(residuals) < sigma * std
+        
+        n_clipped = np.sum(~mask)
+        if n_clipped > 0:
+            print(f"Clipped {n_clipped} points beyond {sigma}σ")
+        
+        return mask
+
     def sine_chisqu_contour_plot(self):
         """
         Plots a colour-mapped contour plot for the three free parameters in the chi-squares fit.

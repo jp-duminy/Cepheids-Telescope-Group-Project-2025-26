@@ -83,6 +83,21 @@ class Sawtooth_Period_Finder(Sinusoid_Period_Finder):
 
         return best_chisqu_period, best_chisqu_params, best_chisqu_uncertainties, best_chisqu
     
+    def clip_from_fit(self, sigma=2.0):
+        """
+        Sigma clip on residuals from the chi-square best fit.
+        """
+        model = self.sawtooth_model(self.time, self.a0, self.p0, self.m0, self.w0, self.period0)
+        residuals = self.magnitude - model
+        std = np.std(residuals)
+        mask = np.abs(residuals) < sigma * std
+        
+        n_clipped = np.sum(~mask)
+        if n_clipped > 0:
+            print(f"Clipped {n_clipped} points beyond {sigma}σ")
+        
+        return mask
+    
     def plot_sawtooth_fit(self):
         """
         Overplot the modelled data from curve_fit onto the data.
