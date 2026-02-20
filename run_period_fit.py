@@ -14,7 +14,7 @@ plt.rcParams['text.usetex'] = False # this avoids an annoying latex installation
 #filename = r"C:\Users\jp\OneDrive\Documents\1 Edinburgh University\Year 4\Telescope Group Project\Sawtooth Data.csv"
 
 
-filename = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/CalibratedData/cepheid_01_MW_Cyg.csv"
+filename = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/CalibratedData/cepheid_05_CP_Cep.csv"
 
 df = pd.read_csv(filename)
 
@@ -182,6 +182,7 @@ class Finder(Sawtooth_Period_Finder):
         if best_model == "sinusoid":
             a0, p0, m0 = best_params
             a0_err, p0_err, m0_err = best_uncertainties
+            new_reduced_chisq = self.reduced_chisqu(best_chisqu, n_params=4)
             print(
                 f"Chi-Square Best Period for Cepheid {self.name} is {best_period:.4f} days\n"
                 f"Best-fit parameters (Sinusoid):\n"
@@ -189,10 +190,12 @@ class Finder(Sawtooth_Period_Finder):
                 f"Phase: {p0:.3f} ± {p0_err:.3f}\n"
                 f"Midline: {m0:.3f} ± {m0_err:.3f}\n"
                 f"χ² value: {best_chisqu:.3f}\n"
+                f"Reduced χ² value: {new_reduced_chisq:.3f}\n"
             )
         else:  # sawtooth
             a0, p0, m0 = best_params
             a0_err, p0_err, m0_err = best_uncertainties
+            new_reduced_chisq = self.reduced_chisqu(best_chisqu, n_params=4)
             print(
                 f"Chi-Square Best Period for Cepheid {self.name} is {best_period:.4f} days\n"
                 f"Best-fit parameters (Sawtooth):\n"
@@ -200,6 +203,7 @@ class Finder(Sawtooth_Period_Finder):
                 f"Phase: {p0:.3f} ± {p0_err:.3f}\n"
                 f"Midline: {m0:.3f} ± {m0_err:.3f}\n"
                 f"χ² value: {best_chisqu:.3f}\n"
+                f"Reduced χ² value: {new_reduced_chisq:.3f}\n"
             )
         
         # Step 2: Run MCMC on the winning model
@@ -243,19 +247,15 @@ class Finder(Sawtooth_Period_Finder):
             )
         
         # Step 3: Generate plots
-        self.light_curve()  # original light curve
         
         if best_model == "sinusoid":
             # Chi-square fitting plots
-            self.plot_sinusoid_fit()
-            self.sine_chisqu_contour_plot()
             # MCMC plots
             self.sine_parameter_time_series()
             self.sine_plot_corner()
             self.sine_plot_emcee_fit()
         else:  # sawtooth
             # Chi-square fitting plots
-            self.plot_sawtooth_fit()
             #self.saw_chisqu_contour_plot()
             # MCMC plots
             self.saw_parameter_time_series()
@@ -265,7 +265,7 @@ class Finder(Sawtooth_Period_Finder):
 
 if __name__ == "__main__":
     finder = Finder(
-        name="MW Cyg",
+        name="CP Cep",
         time=time_list,
         magnitude=df["m_differential"].values,
         magnitude_error=df["m_differential_err"].values,
