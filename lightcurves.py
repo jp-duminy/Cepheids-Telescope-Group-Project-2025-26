@@ -90,9 +90,11 @@ class Lightcurves:
             print(f"No reference data for {self.name}")
             return
         
+        df = self.ref_df.copy()
+        df["MJD"] = self.ref_mjd_time
         fig, ax = plt.subplots()
-        for ref_id, group in self.ref_df.groupby("ref_id"):
-            ax.plot(self.ref_mjd_time, group["offset"], 'o-', label=ref_id, markersize=4)
+        for ref_id, group in df.groupby("ref_id"):
+            ax.plot(group["MJD"], group["offset"], 'o-', label=ref_id, markersize=4)
         ax.axhline(0, color='k', linestyle='--', alpha=0.3)
         ax.set_xlabel("MJD")
         ax.set_ylabel("Offset (m_cal - V_true) [mag]")
