@@ -24,6 +24,23 @@ def prepare_period_fit_data(photometry_dir, cepheid_id):
     combined = combined.sort_values("ISOT")
     return combined
 
+def prepare_reference_data(photometry_dir, cepheid_id):
+    """
+    Collects reference star data across all nights for a given cepheid.
+    """
+    all_data = []
+    for csv_file in sorted(Path(photometry_dir).glob("references_*.csv")):
+        df = pd.read_csv(csv_file)
+        df["cepheid_id"] = df["cepheid_id"].apply(lambda x: f"{int(x):02d}")
+        cep_rows = df[df["cepheid_id"] == cepheid_id]
+        all_data.append(cep_rows)
+    
+    if not all_data:
+        return pd.DataFrame()
+    
+    combined = pd.concat(all_data, ignore_index=True)
+    return combined
+
 def export_all_cepheid_csvs(photometry_dir, output_dir, cepheid_ids):
     """
     Exports each individual cepheid as its own .csv
@@ -43,13 +60,19 @@ def export_all_cepheid_csvs(photometry_dir, output_dir, cepheid_ids):
             combined.to_csv(filename, index=False)
             print(f"Saved {filename} ({len(combined)} observations)")
 
+            ref_combined = prepare_reference_data(photometry_dir, cep_id)
+            if not ref_combined.empty:
+                ref_filename = f"{output_dir}/references_{cep_id}_{name}.csv"
+                ref_combined.to_csv(ref_filename, index=False)
+                print(f"Saved {ref_filename} ({len(ref_combined)} reference observations)")
+
         except Exception as e:
             print(f"Cepheid {cep_id} failed: {e}")
             continue
 
 if __name__ == "__main__":
     photometry_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Photometry"
-    output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/RawData"
+    output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/CalibratedData"
     df = pd.read_csv(Path(photometry_dir) / "photometry_2025-10-06.csv")
     print(df["ID"].dtype)
     print(df["ID"].unique())

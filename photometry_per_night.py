@@ -40,7 +40,6 @@ plt.style.use('science')
 plt.rcParams['text.usetex'] = False
 
 # directories
-input_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/2025-10-06" # change to the name of the night
 output_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Photometry" # where we store the results
 base_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids"
 
@@ -638,6 +637,7 @@ class DifferentialCorrections:
         Z1 = self.calibration["Z1"]
 
         offsets = []
+        self.ref_records = []
 
         if plot:
             ap = AperturePhotometry(str(self.fits_path))
@@ -668,6 +668,16 @@ class DifferentialCorrections:
                 m_cal = m_inst + Z1 + k * airmass
 
                 offsets.append(m_cal - V_known)
+
+                self.ref_records.append({
+                "cepheid_id": self.cepheid_id,
+                "ref_id": ref_id,
+                "night": Path(self.fits_path).parent.name,
+                "ISOT": phot.isot_time(),
+                "m_cal": m_cal,
+                "V_true": V_known,
+                "offset": m_cal - V_known,
+                })
 
                 if plot:
                     x_found, y_found = phot.locate_star(x_g, y_g, plot=False)
@@ -756,6 +766,7 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
     
     data_manager = PhotometryDataManager(input_dir_for(night), output_dir)
     results = []
+    ref_results = []
 
     cep_files = data_manager.find_cepheid_files()
 
@@ -799,8 +810,9 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
         diff = DifferentialCorrections(cep_id, cep_file, reference_catalogue, calibration, cepheid_orientation_catalogue[cep_id],
                                         cepheid_xy_ref=(x_ref, y_ref),
                                         cepheid_xy_true=(x_g, y_g))
-        m_corrected, m_corrected_err = diff.apply(m_calibrated, m_inst_err, plot=diagnostic_plot)
         diff.debug_flip(plot=True)
+        m_corrected, m_corrected_err = diff.apply(m_calibrated, m_inst_err, plot=diagnostic_plot)
+        ref_results.extend(diff.ref_records) # .extend means with this pandas-friendly
 
         A_V = phot.dust_correction()
         m_diff = m_corrected - A_V
@@ -821,6 +833,11 @@ def main(night, diagnostic_plot=False, refit_calibration=False):
     filename = f"photometry_{night}.csv"
     df.to_csv(f"{output_dir}/{filename}", index=False)
     print(f"Results saved to {filename}")
+
+    ref_df = pd.DataFrame(ref_results)
+    ref_filename = f"references_photometry_{night}.csv"
+    ref_df.to_csv(f"{output_dir}/{ref_filename}", index=False)
+    print(f"Reference results saved to {ref_filename}")
 
 if __name__ == "__main__":
     main("2025-09-22", diagnostic_plot=True)  # put in night syntax as needed
