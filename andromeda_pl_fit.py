@@ -7,6 +7,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from pathlib import Path
 
+from andromeda_plots import plot_distance_posterior, plot_on_pl_relation, plot_light_curve
+
+
 
 # need to decide on literature source
 
@@ -159,5 +162,6 @@ if __name__ == "__main__":
 
     andromeda = AndromedaDistance(cepheid_chain, pl_chain, ebv=0.06)
     andromeda.infer_distance()
-    andromeda.plot_distance_posterior()
-    andromeda.plot_on_pl_relation()
+    plot_distance_posterior(andromeda.distance_kpc, savefig=False)
+    plot_on_pl_relation(andromeda.period_samples, andromeda.M_samples,
+                        andromeda.pl_chain, savefig=False)
