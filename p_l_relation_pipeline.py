@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from general_functions import Astro_Functions
 import corner
 
-from distance_catalogues import cepheid_distances, cepheid_simbad_distances
+from distance_catalogues import cepheid_distances, cepheid_simbad_distances, cepheid_vizier_distances
 import pandas as pd
 from pathlib import Path
 from run_period_fit import Finder
@@ -59,7 +59,7 @@ class PLRelation:
         Generate priors for the posterior distribution that will be sampled from.
         """
         a, b, sigma = theta
-        if -5 < a < 5 and -10 < b < 10 and 0.01 < sigma < 1.0: # broad, uninformed priors that take reasonable values 
+        if -5 < a < 5 and -10 < b < 10 and 0.01 < sigma < 2.5: # broad, uninformed priors that take reasonable values 
             return -0.0 # flat prior
         return -np.inf # prior is outside of expected range
     
@@ -383,7 +383,7 @@ if __name__ == "__main__":
     chain_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/AliceInChains"
     per_cepheid_dir = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/RawData"
 
-    cepheid_ids = sorted(cepheid_simbad_distances.keys())
+    cepheid_ids = sorted(cepheid_vizier_distances.keys())
 
     finders = []
     distances = []
@@ -419,7 +419,7 @@ if __name__ == "__main__":
             continue
 
         finders.append(finder)
-        distances.append(cepheid_simbad_distances[cep_id]["distance"])
+        distances.append(cepheid_vizier_distances[cep_id]["distance"])
 
     print(f"\nLoaded {len(finders)} Cepheids for P-L relation")
 
