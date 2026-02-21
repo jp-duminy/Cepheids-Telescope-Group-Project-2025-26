@@ -6,14 +6,14 @@ from astroquery.vizier import Vizier
 import astropy.units as u
 
 # ----- USER INPUT -----
-fits_file = "your_image.fits"
+fits_file = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Andromeda/h_e_20170608_stacked.fits"
 # pixel coordinates of 5 chosen reference stars
 ref_stars = {
-    "ref1": {"x": 1822.2847, "y": 1935.9641},
-    "ref2": {"x": 1595.6322, "y": 818.53086},
-    "ref3": {"x": 2641.3142, "y": 3047.2638},
-    "ref4": {"x": 3015.019, "y": 1277.7626},
-    "ref5": {"x": 849.90332, "y": 2542.1704}
+    "ref1": {"x-coord": "1263.3168", "y-coord": "706.224"}, 
+    "ref2": {"x-coord": "421.70867", "y-coord": "1355.8273"},
+    "ref3": {"x-coord": "1593.3986", "y-coord": "1492.3688"},
+    "ref4": {"x-coord": "192.33158", "y-coord": "236.39108"},
+    "ref5": {"x-coord": "1027.8659", "y-coord": "1575.0207"}
 }
 
 # ----------------------
