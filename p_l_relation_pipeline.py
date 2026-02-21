@@ -281,32 +281,29 @@ class PLRelation:
     """
     def pl_plot_emcee_fit(self):
         """
-        Plot the P-L relation with residuals, colour-coded by log period.
+        Plot the P-L relation with residuals.
         """
         fig, (ax, ax_res) = plt.subplots(2, 1, figsize=(8, 6),
                                         gridspec_kw={'height_ratios': [3, 1]},
                                         sharex=True)
         fig.subplots_adjust(hspace=0.05)
 
-        # colour mapping by log period
-        median_periods = [np.median(p) for p in self.period_posteriors]
-        log_median_periods = np.log10(median_periods)
-        norm = plt.Normalize(vmin=min(log_median_periods), vmax=max(log_median_periods))
-        cmap = plt.cm.viridis
-        colors = [cmap(norm(lp)) for lp in log_median_periods]
+        colors = plt.cm.Dark2(np.linspace(0, 1, len(self.objects)))
 
         # --- top panel: P-L relation ---
         for i in range(len(self.objects)):
             ax.scatter(np.log10(self.period_posteriors[i]), self.magnitude_posteriors[i],
                     alpha=0.1, s=5, color=colors[i])
 
-            med_p = median_periods[i]
+            med_p = np.median(self.period_posteriors[i])
             med_m = np.median(self.magnitude_posteriors[i])
-            ax.errorbar(np.log10(med_p), med_m, fmt='o', color=colors[i],
-                        markersize=8, markeredgecolor='black', markeredgewidth=0.5)
+            ax.errorbar(np.log10(med_p), med_m, fmt='D', color=colors[i],
+                        markersize=6, markeredgecolor='black', markeredgewidth=0.8,
+                        markerfacecolor='none', label=self.names[i])
 
         # fit line with uncertainty band
-        period_range = np.linspace(min(median_periods) * 0.9, max(median_periods) * 1.1, 100)
+        all_median_periods = [np.median(p) for p in self.period_posteriors]
+        period_range = np.linspace(min(all_median_periods) * 0.9, max(all_median_periods) * 1.1, 100)
         log_p = np.log10(period_range)
 
         draw = np.random.randint(0, len(self.flat_samples), size=200)
@@ -317,28 +314,22 @@ class PLRelation:
         spread = np.std(models, axis=0)
 
         ax.plot(log_p, med_model, 'r-', linewidth=2,
-                label=f'M = {self.a0:.2f}(log P - 1) {"+" if self.b0 >= 0 else "−"} {abs(self.b0):.2f}') # (b is negative)
+                label=f'M = {self.a0:.2f}(log P - 1) {"+" if self.b0 >= 0 else "−"} {abs(self.b0):.2f}')
         ax.fill_between(log_p, med_model - spread, med_model + spread,
                         color='gray', alpha=0.4, label=r'$1\sigma$')
         ax.fill_between(log_p, med_model - 2 * spread, med_model + 2 * spread,
                         color='gray', alpha=0.2, label=r'$2\sigma$')
 
         ax.set_ylabel('Absolute Magnitude')
-        ax.legend(fontsize=7)
+        ax.legend(fontsize=7, ncol=2)
         ax.invert_yaxis()
         ax.grid(True, alpha=0.3)
         ax.set_title('Period-Luminosity Relation')
         ax.tick_params(labelbottom=False)
 
-        # colourbar
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax, pad=0.02)
-        cbar.set_label(r'$\log_{10}$(Period) [days]', fontsize=9)
-
         # --- bottom panel: residuals ---
         for i in range(len(self.objects)):
-            med_p = median_periods[i]
+            med_p = np.median(self.period_posteriors[i])
             med_m = np.median(self.magnitude_posteriors[i])
             mag_err = np.std(self.magnitude_posteriors[i])
 
@@ -346,10 +337,10 @@ class PLRelation:
             residual = med_m - expected
 
             ax_res.errorbar(np.log10(med_p), residual, yerr=mag_err,
-                            fmt='o', color=colors[i], capsize=3,
-                            markeredgecolor='black', markeredgewidth=0.5)
+                            fmt='D', color=colors[i], capsize=3,
+                            markeredgecolor='black', markeredgewidth=0.8,
+                            markerfacecolor='none')
 
-            # annotate outliers
             if abs(residual) > 2 * self.sigma:
                 ax_res.annotate(self.names[i], (np.log10(med_p), residual),
                                 fontsize=7, xytext=(5, 5), textcoords='offset points')
@@ -358,6 +349,7 @@ class PLRelation:
         ax_res.set_xlabel(r'$\log_{10}$(Period) [days]')
         ax_res.set_ylabel('Residuals [mag]')
         ax_res.grid(True, alpha=0.3)
+
         plt.show()
 
     def print_results(self):
