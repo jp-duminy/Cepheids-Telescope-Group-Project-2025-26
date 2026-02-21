@@ -59,8 +59,8 @@ class PLRelation:
         Generate priors for the posterior distribution that will be sampled from.
         """
         a, b, sigma = theta
-        if -5 < a < 5 and -10 < b < 10 and 0.01 < sigma < 2.5: # broad, uninformed priors that take reasonable values 
-            return -0.0 # flat prior
+        if -5 < a < 5 and -10 < b < 10 and 0.01 < sigma < 0.3: # broad, uninformed priors that take reasonable values 
+            return -np.log(sigma) # flat prior
         return -np.inf # prior is outside of expected range
     
     def hierarchical_ln_likelihood(self, theta):
@@ -299,7 +299,7 @@ class PLRelation:
             med_m = np.median(self.magnitude_posteriors[i])
             ax.errorbar(np.log10(med_p), med_m, fmt='D', color=colors[i],
                         markersize=6, markeredgecolor='black', markeredgewidth=0.8,
-                        markerfacecolor='none', label=self.names[i])
+                        label=self.names[i])
 
         # fit line with uncertainty band
         all_median_periods = [np.median(p) for p in self.period_posteriors]
@@ -324,7 +324,7 @@ class PLRelation:
         ax.legend(fontsize=7, ncol=2)
         ax.invert_yaxis()
         ax.grid(True, alpha=0.3)
-        ax.set_title('Period-Luminosity Relation')
+        ax.set_title('Classical Cepheid Period-Luminosity Relation')
         ax.tick_params(labelbottom=False)
 
         # --- bottom panel: residuals ---
@@ -338,8 +338,7 @@ class PLRelation:
 
             ax_res.errorbar(np.log10(med_p), residual, yerr=mag_err,
                             fmt='D', color=colors[i], capsize=3,
-                            markeredgecolor='black', markeredgewidth=0.8,
-                            markerfacecolor='none')
+                            markeredgecolor='black', markeredgewidth=0.8)
 
             if abs(residual) > 2 * self.sigma:
                 ax_res.annotate(self.names[i], (np.log10(med_p), residual),
