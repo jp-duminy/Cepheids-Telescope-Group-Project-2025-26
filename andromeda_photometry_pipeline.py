@@ -88,8 +88,8 @@ def faint_star_photometry(fits_path, x_guess, y_guess, name, ebv,
     return m_inst, m_err
 
 m_sky, m_sky_err = faint_star_photometry(
-    "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Andromeda/h_e_20170608_102_1_1_1.fits",
-    x_guess=1179.55, y_guess=1166.59,  # adjust to empty patch
+    "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Andromeda/h_e_20170608_stacked.fits",
+    x_guess=766.999, y_guess=1953.36,  # adjust to empty patch
     name="empty_sky", ebv="0.0",
     ap_rad=10.0, width=100, plot=True
 )
@@ -169,6 +169,15 @@ def run_andromeda_photometry(plot=False):
         except Exception as e:
             print(f"  CV1 FAILED: {e}")
             continue
+
+        # --- Empirical background correction ---
+        SKY_CONTAMINATION = 124.0  # counts/s, measured from empty aperture near CV1
+        cv1_flux = 10**(-0.4 * m_cv1)
+        cv1_corrected_flux = cv1_flux - SKY_CONTAMINATION
+        if cv1_corrected_flux <= 0:
+            print(f"  SKIPPING: corrected flux negative")
+            continue
+        m_cv1 = -2.5 * np.log10(cv1_corrected_flux)
 
         # --- Reference star photometry ---
         offsets = []
