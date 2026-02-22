@@ -22,9 +22,11 @@ from matplotlib.colors import LogNorm
 import csv
 import statsmodels.api as sm
 from matplotlib.lines import Line2D
-import photometry.AirmassInfo as AirmassInfo
 from astropy.stats import sigma_clipped_stats
 from astropy.visualization import PowerStretch, ImageNormalize, ZScaleInterval
+
+# our packages
+import photometry.AirmassInfo as AirmassInfo
 
 class AperturePhotometry: 
 

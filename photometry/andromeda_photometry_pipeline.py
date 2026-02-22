@@ -10,17 +10,24 @@ Calibrates against Pan-STARRS g-band, converts to Johnson V.
 
 """
 
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# default packages
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from astropy.io import fits
 from matplotlib import pyplot as plt
+import scienceplots
 
-from .photometry_functions import AperturePhotometry
-from .photometry_per_night import SinglePhotometry
+# our packages
+from photometry.photometry_functions import AperturePhotometry
+from photometry.photometry_per_night import SinglePhotometry
 from utils.andromeda_catalogue import andromeda_reference_catalogue, cv1_pixel_guesses
 
-import scienceplots
 plt.style.use('science')
 plt.rcParams['text.usetex'] = False
 

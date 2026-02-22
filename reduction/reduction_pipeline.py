@@ -10,6 +10,11 @@ an extra logistical challenge. To that end we have the data manager class and th
 check the diagnostics to make sure these are working correctly (they do).
 
 """
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 # default packages
 import numpy as np
 from astropy.io import fits

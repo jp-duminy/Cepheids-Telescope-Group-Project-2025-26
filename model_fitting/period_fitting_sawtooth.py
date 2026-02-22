@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 import corner
 
 # our packages
-from .period_fitting_sinusoid import Sinusoid_Period_Finder
+from model_fitting.period_fitting_sinusoid import Sinusoid_Period_Finder
 
 output_path = "/storage/teaching/TelescopeGroupProject/2025-26/student-work/Cepheids/Analysis/TestChains"
 

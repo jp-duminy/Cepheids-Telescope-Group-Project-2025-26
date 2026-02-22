@@ -10,6 +10,11 @@ was run for all cepheids. For M31 CV1 I had to tinker with some of the functions
 different and the cepheid was much fainter (just change DAOStarFinder & centroid tolerances, reduce cutout size)
 """
 
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 # default packages
 import numpy as np
 import pandas as pd
@@ -24,8 +29,8 @@ import warnings
 import json
 
 # our classes
-from .photometry_functions import AperturePhotometry, Airmass, DustExtinction
-from .AirmassInfo import AirmassInfo
+from photometry.photometry_functions import AperturePhotometry, Airmass, DustExtinction
+from photometry.AirmassInfo import AirmassInfo
 
 # catalogues
 from utils.catalogues import ALL_CATALOGUES, get_catalogues_for_night, get_pixel_guess

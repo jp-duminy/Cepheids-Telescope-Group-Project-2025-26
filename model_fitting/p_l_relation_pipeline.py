@@ -18,6 +18,11 @@ to the Andromeda galaxy. Everything carries forward: the model is robust, flexib
 I am so proud of this code. 
 """
 
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 # default packages
 import numpy as np
 import scipy

@@ -6,7 +6,10 @@ TGP Cepheids 25-26
 Runs the full period fitting algorithm to a cepheid of choice (sinusoid/sawtooth with chisquares + emcee).
 
 """
-
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # default packages
 import pandas as pd

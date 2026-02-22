@@ -7,6 +7,11 @@ Useful diagnostic.
 
 """
 
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 # default packages
 import matplotlib.pyplot as plt
 import numpy as np

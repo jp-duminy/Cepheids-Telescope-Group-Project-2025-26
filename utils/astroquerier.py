@@ -9,6 +9,10 @@ Suitable for LT data.
 
 Prints it in dictionary format to put into andromeda_catalogue.py
 """
+# so file runs in folder
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # default packages
 import json
