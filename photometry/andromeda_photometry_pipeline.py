@@ -124,7 +124,7 @@ def run_andromeda_photometry(plot=False):
                 name="CV1",
                 ebv=str(EBV_CV1),
             )
-            m_cv1, m_cv1_err = cv1_phot.raw_photometry(width=50, plot=plot, override=True)
+            m_cv1, m_cv1_err = cv1_phot.raw_photometry(width=50, plot=plot)
         except Exception as e:
             print(f"  CV1 FAILED: {e}")
             continue
@@ -144,7 +144,7 @@ def run_andromeda_photometry(plot=False):
                     name=ref_id,
                     ebv="0.0",
                 )
-                m_ref, m_ref_err = ref_phot.raw_photometry(width=80, plot=False, override=False)
+                m_ref, m_ref_err = ref_phot.raw_photometry(width=80, plot=False)
                 g_known = refs[ref_id]["g_true"]
                 offset = refs[ref_id]["g_true"] - m_ref
                 offsets.append(offset)
